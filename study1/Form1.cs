@@ -149,26 +149,7 @@ namespace study1
                 _my2ndBitmap.Height) / 3) + 5);
             MessageBox.Show("Images loaded successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
-        private void File_Load1(object sender, EventArgs e)
-        {
-            var openFileDialog = new OpenFileDialog();
-            openFileDialog.Multiselect = true;
-            openFileDialog.InitialDirectory = "c:\\";
-            openFileDialog.Filter = "Bitmap files (*.bmp)|*.bmp|Jpeg files (*.jpg)|*.jpg|All valid files (*.bmp/*.jpg)|*.bmp;*.jpg";
-            openFileDialog.FilterIndex = 1;
-            openFileDialog.RestoreDirectory = false;
-
-            if (DialogResult.OK != openFileDialog.ShowDialog()) return;
-            
-            _myBitmap = (Bitmap)Image.FromFile(openFileDialog.FileNames[0], false);
-            _my2ndBitmap = (Bitmap)Image.FromFile(openFileDialog.FileNames[1], false);
-            this.ClientSize = new Size(((_myBitmap.Width + _my2ndBitmap.Width) / 2), ((_myBitmap.Height +
-                _my2ndBitmap.Height) / 2));
-            BitmapOperations.Convert2GrayScaleFast(_myBitmap);
-            BitmapOperations.Convert2GrayScaleFast(_my2ndBitmap);
-            this.AutoScroll = true;
-            this.Invalidate();
-        }
+        
         //File_Exit Function
         private void File_Exit(object sender, EventArgs e)
         {
