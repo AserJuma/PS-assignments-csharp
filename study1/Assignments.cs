@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 
 namespace study1
 {
-    public class Assignments
+    public static class Assignments
     {
         private static String[] Load_Files()
         {
@@ -32,14 +33,13 @@ namespace study1
         
         private static void Main()
         {
-            //Bitmap[] verifiedBitmaps = Load_Verify( Load_Files());
+            Bitmap[] verifiedBitmaps = Load_Verify( Load_Files());
             //BitmapOperations.Binarize((Bitmap)verifiedBitmaps[0].Clone(), 100)                .Save("/home/aser/RiderProjects/study1/study1/sb_bmp.bmp"   , ImageFormat.Bmp);
             //BitmapOperations.GetOptimalThreshold((Bitmap)verifiedBitmaps[0].Clone())          .Save("/home/aser/RiderProjects/study1/study1/mb_bmp.bmp"   , ImageFormat.Bmp);
             //BitmapOperations.ConcatenateHorizontally(verifiedBitmaps[0], verifiedBitmaps[1])  .Save("/home/aser/RiderProjects/study1/study1/Hconc_bmp.bmp", ImageFormat.Bmp);
+            //BitmapOperations.ConcatenateVertically(verifiedBitmaps[0], verifiedBitmaps[1])    .Save("/home/aser/RiderProjects/study1/study1/Vconc_bmp.bmp", ImageFormat.Bmp);
             //BitmapOperations.Convert24To8(verifiedBitmaps[0])                                 .Save("/home/aser/RiderProjects/study1/study1/24to8.bmp"    , ImageFormat.Bmp);
             //BitmapOperations.Convert1To8(verifiedBitmaps[0])                                  .Save("/home/aser/RiderProjects/study1/study1/1to8.bmp"     , ImageFormat.Bmp);
-            // TODO: FINISH THIS:
-            //BitmapOperations.ConcatenateVertically(verifiedBitmaps[0], verifiedBitmaps[1])    .Save("/home/aser/RiderProjects/study1/study1/Vconc_bmp.bmp", ImageFormat.Bmp);
         }
     }
 }

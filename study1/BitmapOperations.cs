@@ -104,7 +104,7 @@ namespace study1
             return Binarize(bmp, th);
         }
 
-        public static Bitmap Binarize(Bitmap bmp, int thresholdValue)
+        private static Bitmap Binarize(Bitmap bmp, int thresholdValue)
         {
             const int maxVal = 256;
             if (thresholdValue <= 0 || thresholdValue >= maxVal) return null;
@@ -166,6 +166,7 @@ namespace study1
 
             int width = bmp.Width;
             int height = bmp.Height;
+            int height2 = bmp2.Height;
 
             int offset1 = bmData.Stride - bmp.Width;
             int offset2 = bmData2.Stride - bmp2.Width;
@@ -186,19 +187,13 @@ namespace study1
                             *pC = *p;
                             p += 1;
                         }
-                        else if (x >= width && y < bmp2.Height)
+                        else if (x >= width && y < height2)
                         {
                             *pC = *p2;
                             p2 += 1;
                         }
-                        else
-                        {
-                            *pC = 255;
-                        }
-
                         pC += 1;
                     }
-
                     p += offset1;
                     p2 += offset2;
                     pC += offsetC;
@@ -226,40 +221,28 @@ namespace study1
 
             int width = bmp.Width;
             int height = bmp.Height;
-
+            int width2 = bmp2.Width;
             int stride1 = bmData.Stride;
             int stride2 = bmData2.Stride;
             int strideC = concData.Stride;
-
-            int offset1 = stride1 - bmp.Width;
-            int offset2 = stride2 - bmp2.Width;
-            int offsetC = strideC - concBitmap.Width;
-
+            
             unsafe
             {
                 byte* p = (byte*)bmData.Scan0.ToPointer();
                 byte* p2 = (byte*)bmData2.Scan0.ToPointer();
                 byte* pC = (byte*)concData.Scan0.ToPointer();
-
+                
                 for (int y = 0; y < combHeight; y++)
                 {
                     for (int x = 0; x < combWidth; x++)
                     {
-                        if (y < height)
-                        {
-                            *pC = *p;
-                            p += 1;
-                        }
-                        else if (y >= height)
-                        {
-                            *pC = *p2;
-                            p2 += 1;
-                        }
-                        pC += 1;
+                        int concInd = x + y * strideC;
+                        
+                        if (x < width && y < height)
+                            pC[concInd] = p[x + y * stride1];
+                        else if (x < width2 && y >= height)
+                            pC[concInd] = p2[x + (y - height) * stride2];
                     }
-                    if (y < height) p += offset1;
-                    else p2 += offset2;
-                    pC += offsetC;
                 }
             }
 
