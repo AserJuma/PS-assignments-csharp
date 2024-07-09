@@ -5,9 +5,9 @@ using System.Windows.Forms;
 
 namespace study1
 {
-    public static class Assignments
+    public class Assignments
     {
-        private static String[] Load_Files()
+        private static String[] Load_FilesNames()
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
             openFileDialog.Multiselect = true;
@@ -18,14 +18,14 @@ namespace study1
             return DialogResult.OK != openFileDialog.ShowDialog() ? null : openFileDialog.FileNames;
         }
         
-        private static Bitmap[] Load_Verify(string[] bitmapFilenames)
+        private static Bitmap[] Load_Verify_Bitmaps(string[] bitmapFilenames)
         {
             if (bitmapFilenames == null) throw new NullReferenceException("No image(s) was chosen!");
             Bitmap[] bitmaps = new Bitmap[bitmapFilenames.Length];
             for (int i = 0; i < bitmaps.Length; i++)
             {
                 bitmaps[i] = new Bitmap(bitmapFilenames[i]);
-                if (bitmaps[i].Width == 0 || bitmaps[i].Height == 0) throw new Exception($"Bitmap w/ path: {bitmapFilenames[i]} is broken");
+                //if (bitmaps[i].Width == 0 || bitmaps[i].Height == 0) throw new Exception($"Bitmap w/ path: {bitmapFilenames[i]} is broken");
             }
             return bitmaps;
         }
@@ -33,14 +33,14 @@ namespace study1
         
         private static void Main()
         {
-            Bitmap[] verifiedBitmaps = Load_Verify( Load_Files());
-            //BitmapOperations.Binarize((Bitmap)verifiedBitmaps[0].Clone(), 100)                .Save("/home/aser/RiderProjects/study1/study1/sb_bmp.bmp"   , ImageFormat.Bmp);
-            //BitmapOperations.GetOptimalThreshold((Bitmap)verifiedBitmaps[0].Clone())          .Save("/home/aser/RiderProjects/study1/study1/mb_bmp.bmp"   , ImageFormat.Bmp);
-            //BitmapOperations.ConcatenateHorizontally(verifiedBitmaps[0], verifiedBitmaps[1])  .Save("/home/aser/RiderProjects/study1/study1/Hconc_bmp.bmp", ImageFormat.Bmp);
-            //BitmapOperations.ConcatenateVertically(verifiedBitmaps[0], verifiedBitmaps[1])    .Save("/home/aser/RiderProjects/study1/study1/Vconc_bmp.bmp", ImageFormat.Bmp);
-            //BitmapOperations.Convert24To8(verifiedBitmaps[0])                                 .Save("/home/aser/RiderProjects/study1/study1/24to8.bmp"    , ImageFormat.Bmp);
-            //BitmapOperations.Convert1To8(verifiedBitmaps[0])                                  .Save("/home/aser/RiderProjects/study1/study1/1to8.bmp"     , ImageFormat.Bmp);
+            Bitmap[] bitmapArray = Load_Verify_Bitmaps( Load_FilesNames());
+            //Ops.Binarize(bitmapArray[0], 100)                     .Save("s_b.bmp"     , ImageFormat.Bmp);
+            //Ops.MeanBinarize(bitmapArray[0])                      .Save("m_b.bmp"     , ImageFormat.Bmp);
+            //Ops.Concatenate(bitmapArray[0], bitmapArray[1], true) .Save("conc.bmp"    , ImageFormat.Bmp);
+            //Ops.Convert24To8(bitmapArray[0])                      .Save("24to8.bmp"   , ImageFormat.Bmp);
+            //Ops.Convert1To8(bitmapArray[0])                       .Save("1to8.bmp"    , ImageFormat.Bmp);
+            //Ops.AddPadding(bitmapArray[0]).Save("padded.bmp", ImageFormat.Bmp);
         }
     }
 }
-// TODO: Check input validations
+// TODO: Check input validation
