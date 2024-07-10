@@ -2,10 +2,11 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
+// ReSharper disable MemberCanBePrivate.Global
 
 namespace study1
 {
-    public class Assignments
+    public static class Assignments
     {
         private static string[] Load_FilesNames()
         {
@@ -123,27 +124,20 @@ namespace study1
         private static Bitmap ChangePixelFormat(Bitmap bmp)
         {
             PixelFormat pFormat = bmp.PixelFormat;
-            Bitmap convertedBmp = new Bitmap(bmp.Width, bmp.Height);
+            //Bitmap convertedBmp = new Bitmap(bmp.Width, bmp.Height);
             //Bitmap convertedBmp = (Bitmap)bmp.Clone();
             switch (pFormat)
             {
                 case PixelFormat.Format1bppIndexed:
-                    //Console.WriteLine("Case 1bit");
-                    convertedBmp = Convert1To8(bmp);
-                    break;
+                    return Convert1To8(bmp);
                 case PixelFormat.Format24bppRgb:
-                    //Console.WriteLine("Case 8bit");
-                    convertedBmp = Convert24To8(bmp);
-                    break;
+                    return Convert24To8(bmp);
                 default:
-                    Console.WriteLine("Default entered");
-                    break;
+                    throw new Exception("Default case entered in ChangePixelFormat(), not 1bpp or 24 bpp");
             }
-
-            return convertedBmp;
         }
 
-        public static Bitmap Binarize(Bitmap bmp, int thresholdValue)
+        private static Bitmap Binarize(Bitmap bmp, int thresholdValue)
         {
             Bitmap cBmp = (Bitmap)bmp.Clone();
             if (bmp.PixelFormat != PixelFormat.Format8bppIndexed)
@@ -175,10 +169,10 @@ namespace study1
             return cBmp;
         }
 
-        public static Bitmap MeanBinarize(Bitmap bmp)
+        public static Bitmap MeanBinarize(Bitmap bitmap)
         {
-            byte th = GetOtsuThreshold(bmp);
-            return Binarize(bmp, th);
+            byte th = GetOtsuThreshold(bitmap);
+            return Binarize(bitmap, th);
         }
 
         private static ColorPalette DefineGrayPalette(Bitmap bmp)
@@ -189,7 +183,7 @@ namespace study1
             return palette; //TODO: Is there a better way?
         }
 
-        public static Bitmap Concatenate(Bitmap bmp, Bitmap bmp2, bool direction)
+        private static Bitmap Concatenate(Bitmap bmp, Bitmap bmp2, bool direction)
         {
             Bitmap cbmp1 = (Bitmap)bmp.Clone(); //new Bitmap(bmp.Width, bmp.Height);
             Bitmap cbmp2 = (Bitmap)bmp2.Clone(); //new Bitmap(bmp2.Width, bmp2.Height);
@@ -197,7 +191,7 @@ namespace study1
                 cbmp1 = ChangePixelFormat(bmp);
             if (bmp2.PixelFormat != PixelFormat.Format8bppIndexed)
                 cbmp2 = ChangePixelFormat(bmp2);
-
+            
             BitmapData bmData = cbmp1.LockBits(new Rectangle(0, 0, cbmp1.Width, cbmp1.Height),
                 ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
             BitmapData bmData2 = cbmp2.LockBits(new Rectangle(0, 0, cbmp2.Width, cbmp2.Height),
@@ -258,25 +252,25 @@ namespace study1
             return concBmp;
         }
 
-        public static Bitmap Convert24To8(Bitmap bitmap)
+        private static Bitmap Convert24To8(Bitmap bitmap24)
         {
-            if (bitmap.PixelFormat != PixelFormat.Format24bppRgb) throw new Exception("Error: Bitmap not 24bit");
+            if (bitmap24.PixelFormat != PixelFormat.Format24bppRgb) throw new Exception("Error: Bitmap not 24bit");
 
-            Bitmap newB = new Bitmap(bitmap.Width, bitmap.Height, PixelFormat.Format8bppIndexed);
-            newB.Palette = DefineGrayPalette(newB);
-            BitmapData b1 = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height),
+            Bitmap bitmap8 = new Bitmap(bitmap24.Width, bitmap24.Height, PixelFormat.Format8bppIndexed);
+            bitmap8.Palette = DefineGrayPalette(bitmap8);
+            BitmapData b1 = bitmap24.LockBits(new Rectangle(0, 0, bitmap24.Width, bitmap24.Height),
                 ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
 
-            BitmapData b2 = newB.LockBits(new Rectangle(0, 0, newB.Width, newB.Height),
+            BitmapData b2 = bitmap8.LockBits(new Rectangle(0, 0, bitmap8.Width, bitmap8.Height),
                 ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
 
             int stride = b1.Stride;
             int stride8 = b2.Stride;
-            int offset = stride - bitmap.Width * 3;
-            int offset8 = stride8 - newB.Width;
+            int offset = stride - bitmap24.Width * 3;
+            int offset8 = stride8 - bitmap8.Width;
 
-            int height = bitmap.Height;
-            int width = bitmap.Width;
+            int height = bitmap24.Height;
+            int width = bitmap24.Width;
 
             unsafe
             {
@@ -297,13 +291,13 @@ namespace study1
                 }
             }
 
-            bitmap.UnlockBits(b1);
-            newB.UnlockBits(b2);
-            Console.WriteLine($"New Bitmap has {newB.PixelFormat} Pixel format from 24bit");
-            return newB;
+            bitmap24.UnlockBits(b1);
+            bitmap8.UnlockBits(b2);
+            Console.WriteLine($"New Bitmap has {bitmap8.PixelFormat} Pixel format from 24bit");
+            return bitmap8;
         }
 
-        public static Bitmap Convert1To8(Bitmap bitmap1)
+        private static Bitmap Convert1To8(Bitmap bitmap1)
         {
             if (bitmap1.PixelFormat != PixelFormat.Format1bppIndexed) throw new Exception("Error: Bitmap not 1bit");
             Bitmap bitmap8 = new Bitmap(bitmap1.Width, bitmap1.Height, PixelFormat.Format8bppIndexed);
@@ -317,7 +311,9 @@ namespace study1
             int width = bitmap1.Width;
             int stride1 = bmp1data.Stride;
             int stride8 = bmp8data.Stride;
-
+            //int offset1 = stride1 - width;
+            int offset8 = stride8 - width;
+            
             unsafe
             {
                 byte* ptr1 = (byte*)bmp1data.Scan0.ToPointer();
@@ -327,12 +323,12 @@ namespace study1
                 {
                     for (int x = 0; x < width; x++)
                     {
-                        int index1 = stride1 * y + x / 8;
-                        int index8 = stride8 * y + x;
-
-                        byte b = (byte)(ptr1[index1] & (0x80 >> (x % 8)));
-                        ptr8[index8] = (byte)(b > 0 ? 255 : 0);
+                        byte b = (byte)((*(ptr1 + (x / 8)) >> (7 - (x % 8))) & 0x01);
+                        *ptr8 = (byte)(b > 0 ? 255 : 0);
+                        ptr8++;
                     }
+                    ptr1 += stride1;
+                    ptr8 += offset8;
                 }
             }
 
@@ -342,7 +338,7 @@ namespace study1
             return bitmap8;
         }
 
-        public static Bitmap AddPadding(Bitmap bitmap, int th, byte color)
+        private static Bitmap AddPadding(Bitmap bitmap, int th, byte color)
         {
             /*Bitmap bitmap = (Bitmap)o_bitmap.Clone(); //(bmp.Width, bmp.Height, PixelFormat.Format8bppIndexed);) // New empty bitmap
             if (bitmap.PixelFormat != PixelFormat.Format8bppIndexed)
@@ -389,7 +385,7 @@ namespace study1
             return paddedBmp;
         }
 
-        public static Bitmap Dilate(Bitmap bitmap /*, int size*/)
+        private static Bitmap Dilate(Bitmap bitmap /*, int size*/)
         {
             byte[,] sElement = new byte[3, 3];
             for (int i = 0; i < 3; i++)
@@ -425,20 +421,17 @@ namespace study1
                         {
                             for (int y = 0; y < 3; y++)
                             {
-                                if (*(ptr + y + stride * x) < 128 && sElement[x, y] < 0.5)
+                                if (*(ptr + y + stride * x) < 128 && sElement[x, y] == 0)
                                 {
                                     *nPtr = 0;
                                     break;
                                 }
                             }
-
                             if (*nPtr == 0) break;
                         }
-
                         ptr++;
                         nPtr++;
                     }
-
                     ptr += offset;
                     nPtr += nOffset;
                 }
@@ -449,36 +442,79 @@ namespace study1
             return dilatedBmp;
         }
 
-        public static Bitmap Erode(Bitmap bitmap, int size)
+        private static Bitmap Erode(Bitmap bitmap/*, int size*/)
         {
-            byte[,] sElement = new byte[size, size];
-            for (int i = 0; i < size; i++)
+            byte[,] sElement = new byte[3, 3];
+            for (int i = 0; i < 3; i++)
             {
-                for (int j = 0; j < size; j++)
+                for (int j = 0; j < 3; j++)
                 {
-                    //sElement[i,j] = (byte)(j == 1 && i == 1 ? 0 : 1);
+                    sElement[i,j] = (byte)(i == 1 || j == 1 ? 1 : 0);
                 }
             }
 
             int oWidth = bitmap.Width;
             int oHeight = bitmap.Height;
+            Bitmap erodedBmp = new Bitmap(oWidth, oHeight, PixelFormat.Format8bppIndexed);
+            erodedBmp.Palette = DefineGrayPalette(erodedBmp);
             BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, oWidth, oHeight),
-                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
-            return null;
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            BitmapData erodedBmpData = erodedBmp.LockBits(new Rectangle(0, 0, oWidth, oHeight),
+                ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = bmpData.Stride - oWidth;
+            int nOffset = erodedBmpData.Stride - oWidth;
+            unsafe
+            {
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                byte* nPtr = (byte*)erodedBmpData.Scan0.ToPointer();
+
+                for (int i = 0; i < oHeight; i++)
+                {
+                    for (int j = 0; j < oWidth; j++)
+                    {
+                        *nPtr = 0;
+                        for (int x = 0; x < 3; x++)
+                        {
+                            for (int y = 0; y < 3; y++)
+                            {
+                                if (*(ptr + y + stride * x) > 128 && sElement[x, y] == 1)
+                                {
+                                    *nPtr = 255;
+                                    break;
+                                }
+                            }
+
+                            if (*nPtr == 255) break;
+                        }
+
+                        ptr++;
+                        nPtr++;
+                    }
+
+                    ptr += offset;
+                    nPtr += nOffset;
+                }
+            }
+            bitmap.UnlockBits(bmpData);
+            erodedBmp.UnlockBits(erodedBmpData);
+            return erodedBmp;
         }
 
-        private static void Main()
+        public static void Main()
         {
-            Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
+            //Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
             //Binarize(bitmapArray[0], 100)                     .Save("s_b.bmp"     , ImageFormat.Bmp);
             //MeanBinarize(bitmapArray[0])                      .Save("m_b.bmp"     , ImageFormat.Bmp);
             //Concatenate(bitmapArray[0], bitmapArray[1], true) .Save("conc.bmp"    , ImageFormat.Bmp);
             //Convert24To8(bitmapArray[0])                      .Save("24to8.bmp"   , ImageFormat.Bmp);
             //Convert1To8(bitmapArray[0])                       .Save("1to8.bmp"    , ImageFormat.Bmp);
-            //AddPadding(bitmapArray[0], 6, 255)                .Save("padded.bmp"  , ImageFormat.Bmp);
-            Dilate(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("dilated.bmp", ImageFormat.Bmp);
-
+            //AddPadding(bitmapArray[0], 1, 0)                .Save("padded.bmp"  , ImageFormat.Bmp);
+            //Dilate(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("dilated.bmp", ImageFormat.Bmp);
+            //Erode(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("eroded.bmp", ImageFormat.Bmp);
         }
     }
 }
 // TODO: Check input validation
+// TODO: U 1 TO 8
+// TODO: U Morph
