@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 // ReSharper disable MemberCanBePrivate.Global
+// ReSharper disable UnusedMember.Local
 
 namespace study1
 {
@@ -191,7 +192,7 @@ namespace study1
                 cbmp1 = ChangePixelFormat(bmp);
             if (bmp2.PixelFormat != PixelFormat.Format8bppIndexed)
                 cbmp2 = ChangePixelFormat(bmp2);
-            
+
             BitmapData bmData = cbmp1.LockBits(new Rectangle(0, 0, cbmp1.Width, cbmp1.Height),
                 ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
             BitmapData bmData2 = cbmp2.LockBits(new Rectangle(0, 0, cbmp2.Width, cbmp2.Height),
@@ -313,7 +314,7 @@ namespace study1
             int stride8 = bmp8data.Stride;
             //int offset1 = stride1 - width;
             int offset8 = stride8 - width;
-            
+
             unsafe
             {
                 byte* ptr1 = (byte*)bmp1data.Scan0.ToPointer();
@@ -327,6 +328,7 @@ namespace study1
                         *ptr8 = (byte)(b > 0 ? 255 : 0);
                         ptr8++;
                     }
+
                     ptr1 += stride1;
                     ptr8 += offset8;
                 }
@@ -338,15 +340,15 @@ namespace study1
             return bitmap8;
         }
 
-        private static Bitmap AddPadding(Bitmap bitmap, int th, byte color)
+        private static Bitmap AddPadding(Bitmap bitmap, int thickness, byte color)
         {
             /*Bitmap bitmap = (Bitmap)o_bitmap.Clone(); //(bmp.Width, bmp.Height, PixelFormat.Format8bppIndexed);) // New empty bitmap
             if (bitmap.PixelFormat != PixelFormat.Format8bppIndexed)
                 bitmap = ChangePixelFormat(o_bitmap);*/
             int oWidth = bitmap.Width;
             int oHeight = bitmap.Height;
-            int pWidth = oWidth + th * 2;
-            int pHeight = oHeight + th * 2;
+            int pWidth = oWidth + thickness * 2;
+            int pHeight = oHeight + thickness * 2;
             Bitmap paddedBmp = new Bitmap(pWidth, pHeight, PixelFormat.Format8bppIndexed);
             paddedBmp.Palette = DefineGrayPalette(paddedBmp);
             BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, oWidth, oHeight),
@@ -364,7 +366,7 @@ namespace study1
                 {
                     for (int j = 0; j < pWidth; j++)
                     {
-                        if (i < th || j < th || j >= pWidth - th || i >= pHeight - th)
+                        if (i < thickness || j < thickness || j >= pWidth - thickness || i >= pHeight - thickness)
                             *nPtr = color;
                         else
                         {
@@ -385,136 +387,200 @@ namespace study1
             return paddedBmp;
         }
 
-        private static Bitmap Dilate(Bitmap bitmap /*, int size*/)
+        private static Bitmap RemoveWhiteBoundaryATTEMPT1(Bitmap bitmap)
         {
-            byte[,] sElement = new byte[3, 3];
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            int counter = 0;
+            /*byte[,] sElement = new byte[3, 3];
             for (int i = 0; i < 3; i++)
             {
                 for (int j = 0; j < 3; j++)
                 {
                     sElement[i, j] = (byte)(i == 1 || j == 1 ? 1 : 0);
                 }
-            }
+            }*/
 
-            int oWidth = bitmap.Width;
-            int oHeight = bitmap.Height;
-            Bitmap dilatedBmp = new Bitmap(oWidth, oHeight, PixelFormat.Format8bppIndexed);
-            dilatedBmp.Palette = DefineGrayPalette(dilatedBmp);
-            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, oWidth, oHeight),
-                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
-            BitmapData dilatedBmpData = dilatedBmp.LockBits(new Rectangle(0, 0, oWidth, oHeight),
-                ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
-            int stride = bmpData.Stride;
-            int offset = bmpData.Stride - oWidth;
-            int nOffset = dilatedBmpData.Stride - oWidth;
             unsafe
             {
                 byte* ptr = (byte*)bmpData.Scan0.ToPointer();
-                byte* nPtr = (byte*)dilatedBmpData.Scan0.ToPointer();
 
-                for (int i = 0; i < oHeight; i++)
+                for (int i = 0; i < height; i++)
                 {
-                    for (int j = 0; j < oWidth; j++)
+                    for (int j = 0; j < width; j++)
                     {
-                        *nPtr = 255;
-                        for (int x = 0; x < 3; x++)
-                        {
-                            for (int y = 0; y < 3; y++)
-                            {
-                                if (*(ptr + y + stride * x) < 128 && sElement[x, y] == 0)
-                                {
-                                    *nPtr = 0;
-                                    break;
-                                }
-                            }
-                            if (*nPtr == 0) break;
-                        }
+                        if (i == j && *ptr == 255)
+                            counter++;
                         ptr++;
-                        nPtr++;
                     }
+
                     ptr += offset;
-                    nPtr += nOffset;
                 }
             }
 
+            int x = counter / 2;
+            int newW = width - counter;
+            int newH = height - counter;
             bitmap.UnlockBits(bmpData);
-            dilatedBmp.UnlockBits(dilatedBmpData);
-            return dilatedBmp;
+            return bitmap.Clone(new Rectangle(x, x, newW, newH), bitmap.PixelFormat);
         }
 
-        private static Bitmap Erode(Bitmap bitmap/*, int size*/)
+        private static Bitmap WhiteBoundaryRemovalATTEMPT2(Bitmap bitmap)
         {
-            byte[,] sElement = new byte[3, 3];
-            for (int i = 0; i < 3; i++)
-            {
-                for (int j = 0; j < 3; j++)
-                {
-                    sElement[i,j] = (byte)(i == 1 || j == 1 ? 1 : 0);
-                }
-            }
-
-            int oWidth = bitmap.Width;
-            int oHeight = bitmap.Height;
-            Bitmap erodedBmp = new Bitmap(oWidth, oHeight, PixelFormat.Format8bppIndexed);
-            erodedBmp.Palette = DefineGrayPalette(erodedBmp);
-            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, oWidth, oHeight),
-                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
-            BitmapData erodedBmpData = erodedBmp.LockBits(new Rectangle(0, 0, oWidth, oHeight),
-                ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            Bitmap bmp2 = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
+            bmp2.Palette = DefineGrayPalette(bmp2);
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+            BitmapData bmpData2 = bmp2.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
             int stride = bmpData.Stride;
-            int offset = bmpData.Stride - oWidth;
-            int nOffset = erodedBmpData.Stride - oWidth;
+            int offset = stride - width;
+            unsafe
+            {
+                byte* topL = (byte*)bmpData.Scan0.ToPointer();
+                byte* topR = topL + width - 1;
+                byte* botL = topL + stride * (height - 1);
+                byte* botR = topL + stride * (height - 1) + width - 1;
+                
+                byte* topL2 = (byte*)bmpData2.Scan0.ToPointer();
+                byte* topR2 = topL2 + width - 1;
+                byte* botL2 = topL2 + stride * (height - 1);
+                byte* botR2 = topL2 + stride * (height - 1) + width - 1;
+                if (width == height)
+                {
+                    for (int j = 0; j < height / 2; j++)
+                    {
+                        for (int i = 0; i < width; i++)
+                        {
+                            if (*topL != 255) *topL2 = (byte)(*topL == 0 ? 255 : *topL);
+                            if (*topR != 255) *topR2 = (byte)(*topR == 0 ? 255 : *topR);
+                            if (*botL != 255) *botL2 = (byte)(*botL == 0 ? 255 : *botL);
+                            if (*botR != 255) *botR2 = (byte)(*botR == 0 ? 255 : *botR);
+
+                            topL++; //OK
+                            topR += stride;
+                            botL -= stride;
+                            botR--; //OK
+
+                            topL2++; //OK
+                            topR2 += stride;
+                            botL2 -= stride;
+                            botR2--; //OK
+                        }
+
+                        topL += offset; //OK
+                        topR--; topR -= stride * (height); //Ok-ish
+                        botL++; botL += (stride) * (height); //Ok-ish
+                        botR -= offset; //OK
+                        
+                        topL2 += offset; //OK
+                        topR2--; topR2 -= stride * (height); //Ok-ish
+                        botL2++; botL2 += (stride) * (height); //Ok-ish
+                        botR2 -= offset; //Ok
+                        
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Different w & h");
+                    for (int i = 0; i < height / 2; i++)
+                    {
+                        for (int j = 0; j < height; j++)
+                        {
+                            if (*topR != 255) *topR2 = (byte)(*topR == 0 ? 255 : *topR);
+                            if (*botL != 255) *botL2 = (byte)(*botL == 0 ? 255 : *botL);
+                            topR += stride;
+                            botL -= stride;
+                            topR2 += stride;
+                            botL2 -= stride;
+                        }
+                        topR--; topR -= stride * (height);
+                        botL++; botL += (stride) * (height);
+                        topR2--; topR2 -= stride * (height);
+                        botL2++; botL2 += (stride) * (height);
+                    }
+
+                    for (int i = 0; i < width / 2; i++)
+                    {
+                        for (int j = 0; j < width; j++)
+                        {
+                            if (*topL != 255) *topL2 = (byte)(*topL == 0 ? 255 : *topL);
+                            if (*botR != 255) *botR2 = (byte)(*botR == 0 ? 255 : *botR);
+                            topL++;
+                            topL2++;
+                            botR--;
+                            botR2--;
+                        }
+                        topL += offset;
+                        botR -= offset;
+                        topL2 += offset;
+                        botR2 -= offset;
+                    }
+                }
+                
+            }
+            bitmap.UnlockBits(bmpData);
+            bmp2.UnlockBits(bmpData2);
+            return bmp2;
+            /*Console.WriteLine(counter1);
+            Console.WriteLine(counter2);
+            Console.WriteLine(counter3);
+            Console.WriteLine(counter4);*/
+        }
+
+        private static Bitmap WBR(Bitmap bitmap)
+        {
+            int width = bitmap.Width; int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), 
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            int left = width; int top = height;
+            int right = 0; int bottom = 0; 
             unsafe
             {
                 byte* ptr = (byte*)bmpData.Scan0.ToPointer();
-                byte* nPtr = (byte*)erodedBmpData.Scan0.ToPointer();
-
-                for (int i = 0; i < oHeight; i++)
+                for (int i = 0; i < height; i++)
                 {
-                    for (int j = 0; j < oWidth; j++)
+                    for (int j = 0; j < width; j++)
                     {
-                        *nPtr = 0;
-                        for (int x = 0; x < 3; x++)
+                        if (*ptr != 255)
                         {
-                            for (int y = 0; y < 3; y++)
-                            {
-                                if (*(ptr + y + stride * x) > 128 && sElement[x, y] == 1)
-                                {
-                                    *nPtr = 255;
-                                    break;
-                                }
-                            }
-
-                            if (*nPtr == 255) break;
+                            if (j < left) left = j;
+                            if (i < top) top = i;
+                            if (j >= right) right = j + 1;
+                            if (i >= bottom) bottom = i + 1;
                         }
-
                         ptr++;
-                        nPtr++;
                     }
-
                     ptr += offset;
-                    nPtr += nOffset;
                 }
             }
             bitmap.UnlockBits(bmpData);
-            erodedBmp.UnlockBits(erodedBmpData);
-            return erodedBmp;
+            if (left < right && top < bottom)
+                return bitmap.Clone(new Rectangle(left, top, right - left, bottom - top), bitmap.PixelFormat);
+            return null;
         }
-
         public static void Main()
         {
-            //Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
-            //Binarize(bitmapArray[0], 100)                     .Save("s_b.bmp"     , ImageFormat.Bmp);
+            Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
+            //Binarize(bitmapArray[0], 200)                     .Save("s_b.bmp"     , ImageFormat.Bmp);
             //MeanBinarize(bitmapArray[0])                      .Save("m_b.bmp"     , ImageFormat.Bmp);
             //Concatenate(bitmapArray[0], bitmapArray[1], true) .Save("conc.bmp"    , ImageFormat.Bmp);
             //Convert24To8(bitmapArray[0])                      .Save("24to8.bmp"   , ImageFormat.Bmp);
             //Convert1To8(bitmapArray[0])                       .Save("1to8.bmp"    , ImageFormat.Bmp);
-            //AddPadding(bitmapArray[0], 1, 0)                .Save("padded.bmp"  , ImageFormat.Bmp);
+            //AddPadding(bitmapArray[0], 15, 255)               .Save("padded.bmp"  , ImageFormat.Bmp);
             //Dilate(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("dilated.bmp", ImageFormat.Bmp);
             //Erode(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("eroded.bmp", ImageFormat.Bmp);
+            //Console.WriteLine(bitmapArray[0].PixelFormat);
+            //WhiteBoundaryRemovalATTEMPT2(bitmapArray[0]).Save("WBR.bmp", ImageFormat.Bmp);
+            WBR(bitmapArray[0]).Save("test123.bmp", ImageFormat.Bmp);
         }
     }
 }
-// TODO: Check input validation
-// TODO: U 1 TO 8
-// TODO: U Morph
