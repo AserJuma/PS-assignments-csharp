@@ -1,13 +1,16 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Linq;
 using System.Windows.Forms;
 // ReSharper disable MemberCanBePrivate.Global
-// ReSharper disable UnusedMember.Local
 
 namespace study1
 {
-    public static class Assignments
+    
+    public class Assignments
     {
         private static string[] Load_FilesNames()
         {
@@ -104,10 +107,10 @@ namespace study1
                 // loop through all possible threshold values and maximize between-class variance
                 for (int k = 1; k != 255; k++)
                 {
-                    var p1 = Px(0, k, hist);
-                    var p2 = Px(k + 1, 255, hist);
+                    float p1 = Px(0, k, hist);
+                    float p2 = Px(k + 1, 255, hist);
                     // Continually sums up histogram values in different ranges, covering the span of the image data, in two float values p1, p2
-                    var p12 = p1 * p2;
+                    float p12 = p1 * p2;
                     if (p12 == 0)
                         p12 = 1;
                     float diff = (Mx(0, k, hist) * p2) - (Mx(k + 1, 255, hist) * p1);
@@ -120,22 +123,6 @@ namespace study1
             bmp.UnlockBits(bmData);
             Console.WriteLine("Otsu: " + FindMax(vet, 256));
             return (byte)FindMax(vet, 256); // Finds maximum variance value
-        }
-
-        private static Bitmap ChangePixelFormat(Bitmap bmp)
-        {
-            PixelFormat pFormat = bmp.PixelFormat;
-            //Bitmap convertedBmp = new Bitmap(bmp.Width, bmp.Height);
-            //Bitmap convertedBmp = (Bitmap)bmp.Clone();
-            switch (pFormat)
-            {
-                case PixelFormat.Format1bppIndexed:
-                    return Convert1To8(bmp);
-                case PixelFormat.Format24bppRgb:
-                    return Convert24To8(bmp);
-                default:
-                    throw new Exception("Default case entered in ChangePixelFormat(), not 1bpp or 24 bpp");
-            }
         }
 
         private static Bitmap Binarize(Bitmap bmp, int thresholdValue)
@@ -170,7 +157,7 @@ namespace study1
             return cBmp;
         }
 
-        public static Bitmap MeanBinarize(Bitmap bitmap)
+        private static Bitmap MeanBinarize(Bitmap bitmap)
         {
             byte th = GetOtsuThreshold(bitmap);
             return Binarize(bitmap, th);
@@ -386,7 +373,20 @@ namespace study1
             paddedBmp.UnlockBits(pBmpData);
             return paddedBmp;
         }
-
+        
+        private static Bitmap ChangePixelFormat(Bitmap bmp)
+        {
+            PixelFormat pFormat = bmp.PixelFormat;
+            switch (pFormat)
+            {
+                case PixelFormat.Format1bppIndexed:
+                    return Convert1To8(bmp);
+                case PixelFormat.Format24bppRgb:
+                    return Convert24To8(bmp);
+                default:
+                    throw new Exception("Default case entered in ChangePixelFormat(), not 1bpp or 24 bpp");
+            }
+        }
         private static Bitmap RemoveWhiteBoundaryATTEMPT1(Bitmap bitmap)
         {
             int width = bitmap.Width;
@@ -436,9 +436,9 @@ namespace study1
             Bitmap bmp2 = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
             bmp2.Palette = DefineGrayPalette(bmp2);
             BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
-                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
             BitmapData bmpData2 = bmp2.LockBits(new Rectangle(0, 0, width, height),
-                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+                ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
             int stride = bmpData.Stride;
             int offset = stride - width;
             unsafe
@@ -528,21 +528,21 @@ namespace study1
             bitmap.UnlockBits(bmpData);
             bmp2.UnlockBits(bmpData2);
             return bmp2;
-            /*Console.WriteLine(counter1);
-            Console.WriteLine(counter2);
-            Console.WriteLine(counter3);
-            Console.WriteLine(counter4);*/
         }
 
         private static Bitmap WBR(Bitmap bitmap)
         {
+            /*
+             if (bitmap.PixelFormat != PixelFormat.Format8bppIndexed) return ChangePixelFormat(bitmap);
+            */
             int width = bitmap.Width; int height = bitmap.Height;
             BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), 
                 ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
             int stride = bmpData.Stride;
             int offset = stride - width;
-            int left = width; int top = height;
-            int right = 0; int bottom = 0; 
+            
+            int x = width; int y = height;
+            int right = 0; int bottom = 0; // new image coord ( x, y, wDiff, hDiff);
             unsafe
             {
                 byte* ptr = (byte*)bmpData.Scan0.ToPointer();
@@ -552,8 +552,8 @@ namespace study1
                     {
                         if (*ptr != 255)
                         {
-                            if (j < left) left = j;
-                            if (i < top) top = i;
+                            if (j < x) x = j;
+                            if (i < y) y = i;
                             if (j >= right) right = j + 1;
                             if (i >= bottom) bottom = i + 1;
                         }
@@ -563,8 +563,74 @@ namespace study1
                 }
             }
             bitmap.UnlockBits(bmpData);
-            if (left < right && top < bottom)
-                return bitmap.Clone(new Rectangle(left, top, right - left, bottom - top), bitmap.PixelFormat);
+            int wDiff = right - x;
+            int hDiff = bottom - y;
+            if (x < right && y < bottom) // true if there is something to remove
+                return bitmap.Clone(new Rectangle(x, y, wDiff, hDiff), bitmap.PixelFormat);
+            return bitmap;
+        }
+
+        private static Bitmap MedianFilter(Bitmap bitmap, int size)
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), 
+                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            
+            int widthOffset = width / size;
+            List<byte> list = new List<byte>();
+                unsafe
+                {
+                    byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+
+                    for (int i = 0; i < height; i++)
+                    {
+                        for (int j = 0; j < widthOffset; j++)
+                        {
+                            for (int x = 0; x < size; x++)
+                            {
+                                for (int y = 0; y < size; y++)
+                                    list.Add(*(ptr + y + stride * x));
+                            }
+                            list.Sort();
+                            *ptr = list[size / 2];
+                            list.Clear();
+                            ptr += size;
+                        }
+                        ptr += offset;
+                    }
+                }
+
+            bitmap.UnlockBits(bmpData);
+            return bitmap;
+        }
+
+        private static Bitmap Rescale(Bitmap bitmap, int scaleW, int scaleH)
+        {
+            int width = bitmap.Width; int height = bitmap.Height;
+            int sWidth = (int)(width * (float)scaleW/100);
+            int sHeight = (int)(height * (float)scaleH/100);
+            
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), 
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+
+            Bitmap scaledBmp = new Bitmap(sWidth, sHeight, PixelFormat.Format8bppIndexed);
+            BitmapData bData = scaledBmp.LockBits(new Rectangle(0, 0, sWidth, sHeight), 
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int nStride = bData.Stride;
+            int nOffset = stride - width;
+            unsafe
+            {
+                byte* oPtr = (byte*)bmpData.Scan0.ToPointer();
+                byte* nPtr = (byte*)bData.Scan0.ToPointer();
+            }
+            
+            //Console.WriteLine(sWidth);
+            //Console.WriteLine(sHeight);
             return null;
         }
         public static void Main()
@@ -578,9 +644,14 @@ namespace study1
             //AddPadding(bitmapArray[0], 15, 255)               .Save("padded.bmp"  , ImageFormat.Bmp);
             //Dilate(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("dilated.bmp", ImageFormat.Bmp);
             //Erode(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("eroded.bmp", ImageFormat.Bmp);
+            //WhiteBoundaryRemovalATTEMPT2(bitmapArray[0]).Save("abc.bmp", ImageFormat.Bmp);
+            WBR(bitmapArray[0]).Save("WBR.bmp", ImageFormat.Bmp);
+            //Rescale(bitmapArray[0], 150, 100);
             //Console.WriteLine(bitmapArray[0].PixelFormat);
-            //WhiteBoundaryRemovalATTEMPT2(bitmapArray[0]).Save("WBR.bmp", ImageFormat.Bmp);
-            WBR(bitmapArray[0]).Save("test123.bmp", ImageFormat.Bmp);
+            MedianFilter(bitmapArray[0], 3).Save("median1-3.bmp", ImageFormat.Bmp);
+            //MedianFilter(MedianFilter(MedianFilter(bitmapArray[0], 3), 3), 3).Save("median3-3.bmp", ImageFormat.Bmp);
+            //MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(bitmapArray[0])))))))))).Save("median10-5.bmp", ImageFormat.Bmp);
+            //MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(bitmapArray[0])))))))))))))))))))).Save("median20-5.bmp", ImageFormat.Bmp);
         }
     }
 }
