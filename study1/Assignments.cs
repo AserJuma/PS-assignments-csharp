@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Linq;
+using System.Globalization;
 using System.Windows.Forms;
 // ReSharper disable MemberCanBePrivate.Global
 
@@ -173,33 +172,36 @@ namespace study1
 
         private static Bitmap Concatenate(Bitmap bmp, Bitmap bmp2, bool direction)
         {
-            Bitmap cbmp1 = (Bitmap)bmp.Clone(); //new Bitmap(bmp.Width, bmp.Height);
-            Bitmap cbmp2 = (Bitmap)bmp2.Clone(); //new Bitmap(bmp2.Width, bmp2.Height);
+            Bitmap convBmp = (Bitmap)bmp.Clone(); 
+            Bitmap convBmp2 = (Bitmap)bmp2.Clone(); 
             if (bmp.PixelFormat != PixelFormat.Format8bppIndexed)
-                cbmp1 = ChangePixelFormat(bmp);
+                convBmp = ChangePixelFormat(bmp);
             if (bmp2.PixelFormat != PixelFormat.Format8bppIndexed)
-                cbmp2 = ChangePixelFormat(bmp2);
-
-            BitmapData bmData = cbmp1.LockBits(new Rectangle(0, 0, cbmp1.Width, cbmp1.Height),
+                convBmp2 = ChangePixelFormat(bmp2);
+            if (!direction) {convBmp.RotateFlip(RotateFlipType.Rotate90FlipNone);convBmp2.RotateFlip(RotateFlipType.Rotate90FlipNone);}
+            
+            BitmapData bmData = convBmp.LockBits(new Rectangle(0, 0, convBmp.Width, convBmp.Height),
                 ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
-            BitmapData bmData2 = cbmp2.LockBits(new Rectangle(0, 0, cbmp2.Width, cbmp2.Height),
+            BitmapData bmData2 = convBmp2.LockBits(new Rectangle(0, 0, convBmp2.Width, convBmp2.Height),
                 ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
 
-            int combWidth = direction ? cbmp1.Width + cbmp2.Width : Math.Max(cbmp1.Width, cbmp2.Width);
-            int combHeight = direction ? Math.Max(cbmp1.Height, cbmp2.Height) : cbmp1.Height + cbmp2.Height;
+            int combWidth = convBmp.Width + convBmp2.Width;
+            int combHeight =  Math.Max(convBmp.Height, convBmp2.Height);
 
             Bitmap concBmp = new Bitmap(combWidth, combHeight, PixelFormat.Format8bppIndexed);
             concBmp.Palette = DefineGrayPalette(concBmp);
-            BitmapData concData = concBmp.LockBits(new Rectangle(0, 0, concBmp.Width, concBmp.Height),
+            BitmapData concData = concBmp.LockBits(new Rectangle(0, 0, combWidth, combHeight),
                 ImageLockMode.WriteOnly, concBmp.PixelFormat);
-
-            int width = cbmp1.Width;
-            int width2 = cbmp2.Width;
-            int height = cbmp1.Height;
-            int height2 = cbmp2.Height;
+            int width = convBmp.Width;
+            int width2 = convBmp2.Width;
+            
+            int height = convBmp.Height;
+            int height2 = convBmp2.Height;
+            
             int stride1 = bmData.Stride;
             int stride2 = bmData2.Stride;
             int strideC = concData.Stride;
+            
             int offset1 = stride1 - width;
             int offset2 = stride2 - width2;
             int offsetC = strideC - combWidth;
@@ -219,7 +221,7 @@ namespace study1
                             *pC = *p;
                             p += 1;
                         }
-                        else if (direction ? (x >= width && y < height2) : (x < width2 && y >= height))
+                        else if (x >= width && y < height2)
                         {
                             *pC = *p2;
                             p2 += 1;
@@ -234,9 +236,10 @@ namespace study1
                 }
             }
 
-            cbmp1.UnlockBits(bmData);
-            cbmp2.UnlockBits(bmData2);
+            convBmp.UnlockBits(bmData);
+            convBmp2.UnlockBits(bmData2);
             concBmp.UnlockBits(concData);
+            if (!direction) {concBmp.RotateFlip(RotateFlipType.Rotate270FlipNone);}
             return concBmp;
         }
 
@@ -607,51 +610,778 @@ namespace study1
             return bitmap;
         }
 
-        private static Bitmap Rescale(Bitmap bitmap, int scaleW, int scaleH)
+        private static Bitmap RescaleOneSide(Bitmap bitmap, int percent, bool dimension)
         {
             int width = bitmap.Width; int height = bitmap.Height;
-            int sWidth = (int)(width * (float)scaleW/100);
-            int sHeight = (int)(height * (float)scaleH/100);
+            float scalar = (float)percent / 100;
+            //bool bigger = scalar > 1 ? true : false;
+            int nWidth = dimension ? (int)(width * scalar) : width;
+            int nHeight = dimension ? height :(int)(height * scalar);
             
             BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), 
                 ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
             int stride = bmpData.Stride;
             int offset = stride - width;
 
-            Bitmap scaledBmp = new Bitmap(sWidth, sHeight, PixelFormat.Format8bppIndexed);
-            BitmapData bData = scaledBmp.LockBits(new Rectangle(0, 0, sWidth, sHeight), 
-                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
-            int nStride = bData.Stride;
-            int nOffset = stride - width;
+            Bitmap scaledBmp = new Bitmap(nWidth, nHeight, PixelFormat.Format8bppIndexed);
+            scaledBmp.Palette = DefineGrayPalette(scaledBmp);
+            BitmapData nBmpData = scaledBmp.LockBits(new Rectangle(0, 0, nWidth, nHeight), 
+                ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
+            int nStride = nBmpData.Stride;
+            int nOffset = nStride - width;
+            
+            float yRatio = (float)height / nHeight;
+            float xRatio = (float)width / nWidth; // One is always 1
+            
             unsafe
             {
                 byte* oPtr = (byte*)bmpData.Scan0.ToPointer();
-                byte* nPtr = (byte*)bData.Scan0.ToPointer();
+                byte* nPtr = (byte*)nBmpData.Scan0.ToPointer();
+                
+                for (int i = 0; i < nHeight; i++)
+                {
+                    for (int j = 0; j < nWidth; j++)
+                    {
+                        int srcX = (int)(j * xRatio);
+                        int srcY = (int)(i * yRatio);
+                        
+                        int srcIndex = srcY * stride + srcX; 
+                        int dstIndex = i * nStride + j;
+                        
+                        nPtr[dstIndex] = oPtr[srcIndex];
+                    }
+                }
+                
             }
             
             //Console.WriteLine(sWidth);
             //Console.WriteLine(sHeight);
-            return null;
+            bitmap.UnlockBits(bmpData);
+            scaledBmp.UnlockBits(nBmpData);
+            return scaledBmp;
+        }
+        
+        private static Bitmap RescaleBothSides(Bitmap bitmap, int percent)
+        {
+            int width = bitmap.Width; int height = bitmap.Height;
+            float scalar = (float)percent / 100;
+            int nWidth = (int)(width * scalar);
+            int nHeight = (int)(height * scalar);
+            
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), 
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            Bitmap scaledBmp = new Bitmap(nWidth, nHeight, PixelFormat.Format8bppIndexed);
+            scaledBmp.Palette = DefineGrayPalette(scaledBmp);
+            BitmapData nBmpData = scaledBmp.LockBits(new Rectangle(0, 0, nWidth, nHeight), 
+                ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
+            int nStride = nBmpData.Stride;
+            
+            float yRatio = (float)height / nHeight;
+            float xRatio = (float)width / nWidth;
+            
+            unsafe
+            {
+                byte* oPtr = (byte*)bmpData.Scan0.ToPointer();
+                byte* nPtr = (byte*)nBmpData.Scan0.ToPointer();
+                
+                for (int i = 0; i < nHeight; i++)
+                {
+                    for (int j = 0; j < nWidth; j++)
+                    {
+                        int srcX = (int)(j * xRatio);
+                        int srcY = (int)(i * yRatio);
+                        nPtr[i * nStride + j] = oPtr[srcY * stride + srcX];
+                    }
+                }
+                
+            }
+            bitmap.UnlockBits(bmpData);
+            scaledBmp.UnlockBits(nBmpData);
+            return scaledBmp;
+        }
+
+        private static void DisposeOfBitmaps(Bitmap[] bitmaps)
+        {
+            if (bitmaps.Length > 1)
+            {
+                foreach (Bitmap b in bitmaps)
+                    b.Dispose();
+            }
+            else
+                bitmaps[0].Dispose();
+        }
+
+        private static void Isolate(Bitmap bitmap)
+        {
+            /*
+             if (bitmap.PixelFormat != PixelFormat.Format8bppIndexed) return ChangePixelFormat(bitmap);
+            */
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+
+            List<Rectangle> shapesBounds = new List<Rectangle>();
+            List<Bitmap> shapes = new List<Bitmap>();
+            bool[,] visited = new bool[height, width]; // def to false
+            unsafe
+            {
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                for (int i = 0; i < height; i++)
+                {
+                    for (int j = 0; j < width; j++)
+                    {
+                        if (*ptr != 255 && !visited[i, j]) 
+                        {
+                            int x = j; int right = j;
+                            int y = i; int bottom = i;
+                            //byte* ptrN = ptr;
+                            // Expand the bounding box
+                            for (int row = i; row < height; row++)
+                            {
+                                for (int col = j; col < width; col++)
+                                {
+                                    if (*ptr != 255 && !visited[row, col])
+                                    {
+                                        visited[row, col] = true;
+                                        right = Math.Max(right, col);
+                                        bottom = Math.Max(bottom, row);
+                                    }
+                                    else if (visited[row, col])
+                                    {
+                                        break;
+                                    }
+                                    ptr++;
+                                }
+                                ptr += offset ;
+                            }
+                            
+                            if (right > x && bottom > y)
+                            {
+                                shapesBounds.Add(new Rectangle(x, y, right - x + 1, bottom - y + 1));
+                            }
+                        }
+                        ptr++;
+                    }
+                    ptr += offset; 
+                }
+                bitmap.UnlockBits(bmpData);
+                foreach (Rectangle rect in shapesBounds)
+                {
+                    Console.WriteLine(rect.Size);
+                    if (rect.Width > 0 && rect.Height > 0)
+                    {
+                        //Console.WriteLine("Entered");
+                        //Bitmap b = bitmap.Clone(rect, PixelFormat.Format8bppIndexed);
+                        //shapes.Add(b);
+                    }
+                }
+
+                /*for (int i = 0; i < shapes.Count; i++)
+                {
+                    shapes[i].Save($"'iso_shape{i}.bmp", ImageFormat.Bmp);
+                }*/
+            }
+        }
+
+        private static IEnumerable<Point> checkNeighbors0(BitmapData bitmapData, int i, int j, int st)
+        {
+            List<Point> points = new List<Point>();
+            Queue<Point> queue = new Queue<Point>();
+            unsafe
+            {
+                bool Checked = false;
+                byte* ptr = (byte*)bitmapData.Scan0.ToPointer();
+                while (!Checked)
+                {
+                    for (int y = -1; y <= 1; y++)
+                    {
+                        for (int x = -1; x <= 1; x++)
+                        {
+                            if (*(ptr + (y + i)+ st * (x + j)) == 0)
+                            {
+                                //labels[i + y, j + x] = labelC;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return points;
+        }
+        
+        private static Rectangle findRect(BitmapData bitmapData, int i, int j, int st, bool[,] visited, int width, int height)
+        {
+            //Rectangle rect;
+            bool flag = true;
+            int w = width; int h = height;
+            int right = 0; int bottom = 0;
+            Queue<Point> queue = new Queue<Point>();
+            queue.Enqueue(new Point(i, j));
+            unsafe
+            {
+                byte* ptr = (byte*)bitmapData.Scan0.ToPointer();
+                while (flag)
+                {
+                    Point p = queue.Dequeue();
+                    int pX = p.X;
+                    int pY = p.Y;
+                    for (int y = -1; y <= 1; y++)
+                    {
+                        for (int x = -1; x <= 1; x++)
+                        {
+                            int coordY = y + pY; int coordX = pX + j;
+                            if (coordX >= 0 && coordX < j && coordY >= 0 && coordY < i)
+                            {
+                                if (*(ptr + (coordY) + st * (coordX)) == 0)
+                                {
+                                    if (!visited[coordY, coordX])
+                                    {
+                                        visited[coordY, coordX] = true;
+                                        queue.Enqueue(new Point(coordY, coordX));
+                                        if (coordX < w) w = coordX;
+                                        if (coordX >= right) right = coordX + 1;
+                                        if (coordY < h) h = coordY;
+                                        if (coordY >= bottom) bottom = coordY + 1;
+                                    }
+                                    else
+                                        flag = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            int wDiff = right - w;
+            int hDiff = bottom - h;
+            return new Rectangle(w, h, wDiff, hDiff);
+        }
+        
+        private static void Isolate2(Bitmap bitmap)
+        {
+            /*
+             if (bitmap.PixelFormat != PixelFormat.Format8bppIndexed) return ChangePixelFormat(bitmap);
+            */
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+
+            //int labelCount = 1;
+            //int[,] labels = new int[height, width];
+            //Array.Clear(labels, 0, labels.Length);
+            
+            bool[,] visited = new bool[height, width];
+            bool flag = true;
+            List<Rectangle> shapesBounds = new List<Rectangle>();
+            unsafe
+            {
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                
+                for (int i = 0; i < height; i++)
+                {
+                    for (int j = 0; j < width; j++)
+                    {
+                        if (*ptr == 0 && !visited[i, j])
+                        {
+                            /*while (flag)
+                            {
+                                int w = width; int h = height;
+                                int right = 0; int bottom = 0;
+                                for (int y = -1; y <= 1; y++)
+                                {
+                                    for (int x = -1; x <= 1; x++)
+                                    {
+                                        int ii = y + i;
+                                        int jj = x + j;
+                                        if (*(ptr + ii + stride * jj ) == 0)
+                                        {
+                                            if(!visited[ii, jj])
+                                            {
+                                                visited[ii, jj] = true;
+                                                if (jj < w) w = jj;
+                                                if (ii < h) h = ii;
+                                                if (jj >= right) right = jj + 1;
+                                                if (ii >= bottom) bottom = ii + 1;
+                                            }
+                                            else
+                                            {
+                                                flag = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }*/
+                            //shapesBounds.Add(findRect(bmpData, i, j, stride, visited, width, height));
+                            while (flag)
+                            {
+                                int y = i; int x = j;
+                                visited[y, x] = true;
+                                for (int sI = -1; sI <= 1; sI++)
+                                {
+                                    for (int sJ = -1; sJ <= 1; sJ++)
+                                    {
+                                        int checkX = x + sJ; int checkY = y + sI;
+                                        if (*ptr + (checkY * stride) + checkX == 0)
+                                        {
+                                            if (!visited[checkY, checkX])
+                                            {
+                                                x = checkX; y = checkY;
+                                            }
+                                            else
+                                                flag = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ptr++;
+                    }
+                    ptr += offset; 
+                }
+            }
+            bitmap.UnlockBits(bmpData);
+            int c = 0;
+            foreach (Rectangle rect in shapesBounds)
+            {
+                //Console.WriteLine(rect.Size);
+                /*f (rect.Width > 0 && rect.Height > 0)
+                {
+                    //Console.WriteLine("Entered");
+                    //Bitmap b = bitmap.Clone(rect, PixelFormat.Format8bppIndexed);
+                    //shapes.Add(b);
+                }*/
+                c++;
+            }
+            Console.WriteLine(c);
+            //return bitmap;
+        }
+        private static void Identify(Bitmap bitmap) // Under construction 
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Width;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            int counter = 0;
+            unsafe
+            {
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                for (int i = 0; i < height; i++)
+                {
+                    for (int j = 0; j < width; j++)
+                    {
+                        if (*ptr == 255)
+                            counter++;
+                        ptr++;
+                    }
+                    ptr += offset;
+                }
+            }
+            bitmap.UnlockBits(bmpData);
+            Console.WriteLine(counter);
+            Console.WriteLine(width * height);
+            //Console.WriteLine(bitmap.PixelFormat);
+        }
+        private static void Test1(Bitmap bitmap) 
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            
+            int[,] Gx = // Perwitt
+            {
+                { 1,  4,  1 },
+                { 4,  -20,  4 },
+                { 1,  4,  1 }
+            };
+
+            int[,] Gy =
+            {
+                {  1,  1,  1 },
+                {  0,  0,  0 },
+                { -1, -1, -1 }
+            };
+            
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            Bitmap outputBitmap = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
+            outputBitmap.Palette = DefineGrayPalette(outputBitmap);
+            BitmapData outputData = outputBitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int counter = 0;
+            int[,] magnitudeMatrix = new int[height, width];
+            unsafe
+            {
+                IntPtr ptr = bmpData.Scan0;
+                IntPtr outputPtr = outputData.Scan0;
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int gx = 0;
+                        int gy = 0;
+                        
+                        for (int i = -1; i < 2; i++)
+                        {
+                            for (int j = -1; j < 2; j++)
+                            {
+                                byte* pixelPtr = (byte*)ptr + ((y + i) * stride) + (x + j);
+                                int pixelValue = *pixelPtr;
+
+                                gx += Gx[i+1, j+1] * pixelValue;
+                                //gy += Gy[i+1, j+1] * pixelValue;
+                            }
+                        }
+                        
+                        int magnitude = (int)Math.Sqrt(gx * gx /*+ gy * gy*/);
+                        //Console.WriteLine(magnitude);
+                        //magnitude = Math.Min(255, magnitude);
+                        
+                        if (magnitude > 0)
+                        {
+                            // Set the pixel in the output bitmap
+                            /*byte* outputPixelPtr = (byte*)outputPtr + (y * stride) + x;
+                            *outputPixelPtr = (byte)magnitude;*/
+                            //Console.WriteLine(magnitude);
+                            magnitudeMatrix[y, x] = magnitude;
+                            counter++;
+                        }
+                        else
+                        {
+                            // Set to black for white pixels
+                            /*byte* outputPixelPtr = (byte*)outputPtr + (y * stride) + x;
+                            *outputPixelPtr = 0;*/
+                        }
+                    }
+                }
+            }
+            
+            bitmap.UnlockBits(bmpData);
+            outputBitmap.UnlockBits(outputData);
+            Console.WriteLine(counter);
+            outputBitmap.Save("sobel-ed_image.bmp", ImageFormat.Bmp);
+        }
+        private static void Corners_Harris(Bitmap bitmap) // HARRIS CORNER
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite,
+                PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            int[,] ly = new int[3, 3];
+            int[,] lx = new int[3, 3];
+            double C = 0;
+            
+           
+            int stride2 = bmpData.Stride;
+            int offset2 = stride2 - width;
+            
+            unsafe
+            {
+                
+                byte* ptr2 = (byte*)bmpData.Scan0.ToPointer();
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                for (int i = 0; i < height; i++)
+                {
+                    for (int j = 0; j < width; j++)
+                    {
+                        if (*(ptr + stride + 1) == 0)
+                        {
+                            int p1 = 0; int p2 = 0; int p3 = 0; int p4 = 0;
+                            for (int y = 0; y < 3; y++)
+                            {
+                                for (int x = 0; x < 3; x++)
+                                {
+                                    ly[x, y] = (-1 * *(ptr + 1 + y + (stride*x)) + *(ptr + (stride*(2+x)) + 1 + y));
+                                    lx[x, y] = (-1 * *(ptr + (stride * (x+1)) + y) + *(ptr + (stride * (x+1)) + y + 2));
+                                }
+                            }
+                            for (int k = 0; k < 3; k++)
+                            {
+                                for (int l = 0; l < 3; l++)
+                                {
+                                    p1 += lx[l, k] * lx[l, k];
+                                    p4 += ly[l, k] * ly[l, k];
+                                    p2 += lx[l, k] * ly[l, k];
+                                    p3 = p2;
+                                }
+                            }
+                            C = (p1 * p4 - p2 * p3) - 0.04 * (p1 + p4) * (p1 * p4); // det(H) - k * trace(H)^2
+                            if (C != 0)
+                            {
+                                *(ptr2 + stride * i + j + 1) = 100;
+                            }
+                        }
+                        ptr++;
+                    }
+                    ptr += offset;
+                }
+            }
+            bitmap.UnlockBits(bmpData);
+            bitmap.Save("dotted.bmp", ImageFormat.Bmp);
+        }
+        private static Point[] Corners_Moravec(Bitmap bitmap) // Moravec CORNER
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite,
+                PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            //int[] SSD = new int[8];
+            List<Point> corners = new List<Point>();
+            unsafe
+            {
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                for (int y = 1; y < height - 1; y++)
+                {
+                    for (int x = 1; x < width - 1; x++)
+                    {
+                        int min = int.MaxValue; // largest 32 bit integer 2,147,483,647
+                        if (*ptr == 0)
+                        {
+                            for (int i = -1; i <= 1; i++)
+                            {
+                                for (int j = -1; j <= 1; j++)
+                                {
+                                    if (i == 0 && j == 0)
+                                        continue;
+                                    int SSD = 0;
+                                    for (int dy = -1; dy <= 1; dy++)
+                                    {
+                                        for (int dx = -1; dx <= 1; dx++)
+                                        {
+                                            //int d = 
+                                            //SSD += d * d;
+                                        }
+                                    }
+                                    if (SSD < min)
+                                    {
+                                        min = SSD;
+                                    }
+                                }
+                            }
+                            /*if (min > 0)
+                            {
+                                corners.Add(new Point(x, y));
+                            }*/
+                            Console.WriteLine("Entered");
+                            Console.WriteLine(min);
+                        }  
+                        //ptr++;
+                    }
+                    //ptr += offset;
+                }
+            }
+            bitmap.UnlockBits(bmpData);
+            return corners.ToArray();
+        }
+
+        private static void Isolate3(Bitmap bitmap)
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            bool[,] visit = new bool[height,width];
+            int[,] labelM = new int[height, width];
+            int currLabel = 1;
+            Stack<Point> neighbors = new Stack<Point>();
+            Stack<Point> neighborsOfNeighbors = new Stack<Point>();
+            unsafe
+            {
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                for (int i = 0; i < height; i++)
+                {
+                    for (int j = 0; j < width; j++)
+                    {
+                        if(!visit[i,j])
+                        {
+                            if (*ptr == 0)
+                            {
+                                labelM[i, j] = currLabel; 
+                                visit[i, j] = true;
+                                for (int dy = -1; dy <= 1; dy++)
+                                {
+                                    for (int dx = -1; dx <= 1; dx++)
+                                    {
+                                        if (j + dx >= 0 && j + dx < width && i + dy >= 0 && i + dy < height)
+                                        {
+                                            if (dx != 0 && dy != 0)
+                                            {
+                                                byte* neighbor = ptr + (j + dx) + ((i + dy) * stride);
+                                                if (!visit[i + dy, j + dx])
+                                                {
+                                                    if (*neighbor == 0)
+                                                    {
+                                                        labelM[i + dy, j + dx] = currLabel;
+                                                        neighbors.Push(new Point(i + dy, j + dx)); visit[i + dy, j + dx] = true;
+                                                    }
+
+                                                    //visit[i + dy, j + dx] = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                while (neighbors.Count != 0)
+                                {
+                                    Point p = neighbors.Pop();
+                                    int pX = p.X;
+                                    int pY = p.Y;
+                                    for (int dy = -1; dy <= 1; dy++)
+                                    {
+                                        for (int dx = -1; dx <= 1; dx++)
+                                        {
+                                            if (pX + dx >= 0 && pX + dx < width && pY + dy >= 0 && pY + dy < height)
+                                            {
+                                                if (dx != 0 && dy != 0)
+                                                {
+                                                    byte* neighborN = ptr + (pX + dx) + ((pY + dy) * stride);
+                                                    if (!visit[pY + dy, pX + dx])
+                                                    {
+                                                        if (*neighborN == 0)
+                                                        {
+                                                            labelM[pY + dy, pX + dx] = currLabel;
+                                                            neighborsOfNeighbors.Push(new Point(i + dy, j + dx));
+                                                            visit[pY + dy, pX + dx] = true;
+                                                        }
+                                                        //visit[pY + dy, pX + dx] = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } //currLabel++;
+                            //visit[i, j] = true;
+                        }
+                        ptr++;
+                    }
+                    ptr += offset;
+                }
+            }
+            bitmap.UnlockBits(bmpData);
+            
+            for (int i = 0; i < height; i++)
+            {
+                for (int j = 0; j < width; j++)
+                {
+                    Console.Write(labelM[i, j].ToString().PadLeft(4));
+                }
+                Console.WriteLine(); 
+            }
+        }
+
+        private static void Isolate4(Bitmap bitmap)
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+            int stride = bmpData.Stride;
+            int offset = stride - width;
+            //bool[,] visit = new bool[width,height];
+            int[,] label = new int[width, height];
+            int currLabel = 1;
+            //Queue<Point> neighbors = new Queue<Point>();
+            //Queue<Point> neighborsOfNeighbors = new Queue<Point>();
+            int[] dx = { +1, 0, -1, 0 };
+            int[] dy = { 0, +1, 0, -1 };
+            unsafe
+            {
+                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
+                for (int i = 0; i < height; i++)
+                {
+                    for (int j = 0; j < width; j++)
+                    {
+                        if (*ptr == 0)
+                        {
+                            
+                            /*for (int dy = -1; dy <= 1; dy++)
+                            {
+                                for (int dx = -1; dx <= 1; dx++)
+                                {
+                                    if(dx != 0 && dy != 0) // Dont check same pixel again
+                                    {
+                                        if(!visit[j + dx, i + dy])
+                                        {
+                                            if (*(ptr + dx + stride * dy) == 0 && mask[dy, dx] == 1)
+                                            {
+                                                neighbors.Push(new Point(j + dx, i + dy));
+                                            }
+                                            else if (*(ptr + dx + stride * dy) != 0 && mask[dy, dx] == 1)
+                                            {
+                                                visit[j + dx, i + dy] = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }*/
+                        } 
+                        ptr++;
+                    }
+                    ptr += offset;
+                }
+            }
+            bitmap.UnlockBits(bmpData);
+            
         }
         public static void Main()
         {
             Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
             //Binarize(bitmapArray[0], 200)                     .Save("s_b.bmp"     , ImageFormat.Bmp);
             //MeanBinarize(bitmapArray[0])                      .Save("m_b.bmp"     , ImageFormat.Bmp);
-            //Concatenate(bitmapArray[0], bitmapArray[1], true) .Save("conc.bmp"    , ImageFormat.Bmp);
+            //Concatenate(bitmapArray[0], bitmapArray[1], false) .Save("conc.bmp"    , ImageFormat.Bmp);
             //Convert24To8(bitmapArray[0])                      .Save("24to8.bmp"   , ImageFormat.Bmp);
             //Convert1To8(bitmapArray[0])                       .Save("1to8.bmp"    , ImageFormat.Bmp);
             //AddPadding(bitmapArray[0], 15, 255)               .Save("padded.bmp"  , ImageFormat.Bmp);
             //Dilate(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("dilated.bmp", ImageFormat.Bmp);
             //Erode(AddPadding(MeanBinarize(Convert24To8(bitmapArray[0])), 1, 0) /*, 3*/).Save("eroded.bmp", ImageFormat.Bmp);
             //WhiteBoundaryRemovalATTEMPT2(bitmapArray[0]).Save("abc.bmp", ImageFormat.Bmp);
-            WBR(bitmapArray[0]).Save("WBR.bmp", ImageFormat.Bmp);
-            //Rescale(bitmapArray[0], 150, 100);
+            //WBR(bitmapArray[0]).Save("WBR.bmp", ImageFormat.Bmp);
+            //RescaleOneSide(bitmapArray[0], 50, false).Save("scaled.bmp", ImageFormat.Bmp);
+            //RescaleBothSides(RescaleBothSides(bitmapArray[0], 30), 50).Save("scaledEq1.bmp", ImageFormat.Bmp);
+            //RescaleBothSides(bitmapArray[0], 50).Save("scaledEq2.bmp", ImageFormat.Bmp);
+            //Isolate(bitmapArray[0]);
             //Console.WriteLine(bitmapArray[0].PixelFormat);
-            MedianFilter(bitmapArray[0], 3).Save("median1-3.bmp", ImageFormat.Bmp);
+            //MedianFilter(bitmapArray[0], 3).Save("median1-3.bmp", ImageFormat.Bmp);
             //MedianFilter(MedianFilter(MedianFilter(bitmapArray[0], 3), 3), 3).Save("median3-3.bmp", ImageFormat.Bmp);
             //MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(bitmapArray[0])))))))))).Save("median10-5.bmp", ImageFormat.Bmp);
             //MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(MedianFilter(bitmapArray[0])))))))))))))))))))).Save("median20-5.bmp", ImageFormat.Bmp);
+            //Isolate(bitmapArray[0]);
+            //Isolate2(AddPadding(bitmapArray[0], 1, 255));//.Save("iso-test.bmp", ImageFormat.Bmp);
+            //Test1(AddPadding(bitmapArray[0], 1, 255));
+            //FindContours(AddPadding(bitmapArray[0], 1, 255));//.Save("iso-test.bmp", ImageFormat.Bmp);)
+            
+            //Point[] points = Corners_Moravec(bitmapArray[0]);
+            //Console.WriteLine(points.Length);
+            /*foreach (Point p in points)
+            {
+                Console.WriteLine(p);
+            }*/
+            
+            /*Bitmap b = bitmapArray[0];
+            List<List <Point>> listInList = FindContours(b);
+            Bitmap[] b2 = Split(b, listInList);
+            
+            for (int i = 0; i < b2.Length; i++)
+            {
+                b2[i].Save($"Shape{i+1}.jpg", ImageFormat.Jpeg);
+            }*/
+            Corners_Harris(bitmapArray[0]);
+            
+            //Isolate3(AddPadding(bitmapArray[0], 5, 255));
+            
+            DisposeOfBitmaps(bitmapArray);
         }
     }
 }
