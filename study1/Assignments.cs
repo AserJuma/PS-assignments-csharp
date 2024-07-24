@@ -711,256 +711,6 @@ namespace study1
             else
                 bitmaps[0].Dispose();
         }
-
-        private static void Isolate(Bitmap bitmap)
-        {
-            /*
-             if (bitmap.PixelFormat != PixelFormat.Format8bppIndexed) return ChangePixelFormat(bitmap);
-            */
-            int width = bitmap.Width;
-            int height = bitmap.Height;
-            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
-                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
-            int stride = bmpData.Stride;
-            int offset = stride - width;
-
-            List<Rectangle> shapesBounds = new List<Rectangle>();
-            List<Bitmap> shapes = new List<Bitmap>();
-            bool[,] visited = new bool[height, width]; // def to false
-            unsafe
-            {
-                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
-                for (int i = 0; i < height; i++)
-                {
-                    for (int j = 0; j < width; j++)
-                    {
-                        if (*ptr != 255 && !visited[i, j]) 
-                        {
-                            int x = j; int right = j;
-                            int y = i; int bottom = i;
-                            //byte* ptrN = ptr;
-                            // Expand the bounding box
-                            for (int row = i; row < height; row++)
-                            {
-                                for (int col = j; col < width; col++)
-                                {
-                                    if (*ptr != 255 && !visited[row, col])
-                                    {
-                                        visited[row, col] = true;
-                                        right = Math.Max(right, col);
-                                        bottom = Math.Max(bottom, row);
-                                    }
-                                    else if (visited[row, col])
-                                    {
-                                        break;
-                                    }
-                                    ptr++;
-                                }
-                                ptr += offset ;
-                            }
-                            
-                            if (right > x && bottom > y)
-                            {
-                                shapesBounds.Add(new Rectangle(x, y, right - x + 1, bottom - y + 1));
-                            }
-                        }
-                        ptr++;
-                    }
-                    ptr += offset; 
-                }
-                bitmap.UnlockBits(bmpData);
-                foreach (Rectangle rect in shapesBounds)
-                {
-                    Console.WriteLine(rect.Size);
-                    if (rect.Width > 0 && rect.Height > 0)
-                    {
-                        //Console.WriteLine("Entered");
-                        //Bitmap b = bitmap.Clone(rect, PixelFormat.Format8bppIndexed);
-                        //shapes.Add(b);
-                    }
-                }
-
-                /*for (int i = 0; i < shapes.Count; i++)
-                {
-                    shapes[i].Save($"'iso_shape{i}.bmp", ImageFormat.Bmp);
-                }*/
-            }
-        }
-
-        private static IEnumerable<Point> checkNeighbors0(BitmapData bitmapData, int i, int j, int st)
-        {
-            List<Point> points = new List<Point>();
-            Queue<Point> queue = new Queue<Point>();
-            unsafe
-            {
-                bool Checked = false;
-                byte* ptr = (byte*)bitmapData.Scan0.ToPointer();
-                while (!Checked)
-                {
-                    for (int y = -1; y <= 1; y++)
-                    {
-                        for (int x = -1; x <= 1; x++)
-                        {
-                            if (*(ptr + (y + i)+ st * (x + j)) == 0)
-                            {
-                                //labels[i + y, j + x] = labelC;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return points;
-        }
-        
-        private static Rectangle findRect(BitmapData bitmapData, int i, int j, int st, bool[,] visited, int width, int height)
-        {
-            //Rectangle rect;
-            bool flag = true;
-            int w = width; int h = height;
-            int right = 0; int bottom = 0;
-            Queue<Point> queue = new Queue<Point>();
-            queue.Enqueue(new Point(i, j));
-            unsafe
-            {
-                byte* ptr = (byte*)bitmapData.Scan0.ToPointer();
-                while (flag)
-                {
-                    Point p = queue.Dequeue();
-                    int pX = p.X;
-                    int pY = p.Y;
-                    for (int y = -1; y <= 1; y++)
-                    {
-                        for (int x = -1; x <= 1; x++)
-                        {
-                            int coordY = y + pY; int coordX = pX + j;
-                            if (coordX >= 0 && coordX < j && coordY >= 0 && coordY < i)
-                            {
-                                if (*(ptr + (coordY) + st * (coordX)) == 0)
-                                {
-                                    if (!visited[coordY, coordX])
-                                    {
-                                        visited[coordY, coordX] = true;
-                                        queue.Enqueue(new Point(coordY, coordX));
-                                        if (coordX < w) w = coordX;
-                                        if (coordX >= right) right = coordX + 1;
-                                        if (coordY < h) h = coordY;
-                                        if (coordY >= bottom) bottom = coordY + 1;
-                                    }
-                                    else
-                                        flag = false;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            int wDiff = right - w;
-            int hDiff = bottom - h;
-            return new Rectangle(w, h, wDiff, hDiff);
-        }
-        
-        private static void Isolate2(Bitmap bitmap)
-        {
-            /*
-             if (bitmap.PixelFormat != PixelFormat.Format8bppIndexed) return ChangePixelFormat(bitmap);
-            */
-            int width = bitmap.Width;
-            int height = bitmap.Height;
-            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
-                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
-            int stride = bmpData.Stride;
-            int offset = stride - width;
-
-            //int labelCount = 1;
-            //int[,] labels = new int[height, width];
-            //Array.Clear(labels, 0, labels.Length);
-            
-            bool[,] visited = new bool[height, width];
-            bool flag = true;
-            List<Rectangle> shapesBounds = new List<Rectangle>();
-            unsafe
-            {
-                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
-                
-                for (int i = 0; i < height; i++)
-                {
-                    for (int j = 0; j < width; j++)
-                    {
-                        if (*ptr == 0 && !visited[i, j])
-                        {
-                            /*while (flag)
-                            {
-                                int w = width; int h = height;
-                                int right = 0; int bottom = 0;
-                                for (int y = -1; y <= 1; y++)
-                                {
-                                    for (int x = -1; x <= 1; x++)
-                                    {
-                                        int ii = y + i;
-                                        int jj = x + j;
-                                        if (*(ptr + ii + stride * jj ) == 0)
-                                        {
-                                            if(!visited[ii, jj])
-                                            {
-                                                visited[ii, jj] = true;
-                                                if (jj < w) w = jj;
-                                                if (ii < h) h = ii;
-                                                if (jj >= right) right = jj + 1;
-                                                if (ii >= bottom) bottom = ii + 1;
-                                            }
-                                            else
-                                            {
-                                                flag = false;
-                                            }
-                                        }
-                                    }
-                                }
-                            }*/
-                            //shapesBounds.Add(findRect(bmpData, i, j, stride, visited, width, height));
-                            while (flag)
-                            {
-                                int y = i; int x = j;
-                                visited[y, x] = true;
-                                for (int sI = -1; sI <= 1; sI++)
-                                {
-                                    for (int sJ = -1; sJ <= 1; sJ++)
-                                    {
-                                        int checkX = x + sJ; int checkY = y + sI;
-                                        if (*ptr + (checkY * stride) + checkX == 0)
-                                        {
-                                            if (!visited[checkY, checkX])
-                                            {
-                                                x = checkX; y = checkY;
-                                            }
-                                            else
-                                                flag = false;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        ptr++;
-                    }
-                    ptr += offset; 
-                }
-            }
-            bitmap.UnlockBits(bmpData);
-            int c = 0;
-            foreach (Rectangle rect in shapesBounds)
-            {
-                //Console.WriteLine(rect.Size);
-                /*f (rect.Width > 0 && rect.Height > 0)
-                {
-                    //Console.WriteLine("Entered");
-                    //Bitmap b = bitmap.Clone(rect, PixelFormat.Format8bppIndexed);
-                    //shapes.Add(b);
-                }*/
-                c++;
-            }
-            Console.WriteLine(c);
-            //return bitmap;
-        }
         private static void Identify(Bitmap bitmap) // Under construction 
         {
             int width = bitmap.Width;
@@ -1182,159 +932,71 @@ namespace study1
             bitmap.UnlockBits(bmpData);
             return corners.ToArray();
         }
-
-        private static void Isolate3(Bitmap bitmap)
+        
+        public static void Isolate(Bitmap bitmap)
         {
             int width = bitmap.Width;
             int height = bitmap.Height;
-            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
-                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
-            int stride = bmpData.Stride;
+            bool[,] visited = new bool[width, height];
+            BitmapData bmd = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int stride = bmd.Stride;
             int offset = stride - width;
-            bool[,] visit = new bool[height,width];
-            int[,] labelM = new int[height, width];
-            int currLabel = 1;
-            Stack<Point> neighbors = new Stack<Point>();
-            Stack<Point> neighborsOfNeighbors = new Stack<Point>();
+            List<List<Point>> shapes = new List<List<Point>>();
+            
             unsafe
             {
-                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
-                for (int i = 0; i < height; i++)
+                
+                byte* ptr = (byte*)bmd.Scan0.ToPointer();
+                byte* ptrN = ptr;
+                for (int y = 0; y < height; y++)
                 {
-                    for (int j = 0; j < width; j++)
+                    for (int x = 0; x < width; x++)
                     {
-                        if(!visit[i,j])
+                        if (*ptr == 0 && !visited[x, y])
                         {
-                            if (*ptr == 0)
+                            List<Point> shape = new List<Point>();
+                            Stack<Point> neighbors = new Stack<Point>();
+                            neighbors.Push(new Point(x, y));
+                            while (neighbors.Count != 0)
                             {
-                                labelM[i, j] = currLabel; 
-                                visit[i, j] = true;
+                                Point point = neighbors.Pop();
+                                int currX = point.X; int currY = point.Y;
+                                if (!visited[currX, currY])
+                                    visited[currX, currY] = true;
+                                shape.Add(point);
                                 for (int dy = -1; dy <= 1; dy++)
                                 {
                                     for (int dx = -1; dx <= 1; dx++)
                                     {
-                                        if (j + dx >= 0 && j + dx < width && i + dy >= 0 && i + dy < height)
-                                        {
-                                            if (dx != 0 && dy != 0)
-                                            {
-                                                byte* neighbor = ptr + (j + dx) + ((i + dy) * stride);
-                                                if (!visit[i + dy, j + dx])
-                                                {
-                                                    if (*neighbor == 0)
-                                                    {
-                                                        labelM[i + dy, j + dx] = currLabel;
-                                                        neighbors.Push(new Point(i + dy, j + dx)); visit[i + dy, j + dx] = true;
-                                                    }
+                                        int neighborX = currX + dx;
+                                        int neighborY = currY + dy;
 
-                                                    //visit[i + dy, j + dx] = true;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                while (neighbors.Count != 0)
-                                {
-                                    Point p = neighbors.Pop();
-                                    int pX = p.X;
-                                    int pY = p.Y;
-                                    for (int dy = -1; dy <= 1; dy++)
-                                    {
-                                        for (int dx = -1; dx <= 1; dx++)
+                                        if (neighborX >= 0 && neighborX < width && neighborY >= 0 &&
+                                            neighborY < height)
                                         {
-                                            if (pX + dx >= 0 && pX + dx < width && pY + dy >= 0 && pY + dy < height)
-                                            {
-                                                if (dx != 0 && dy != 0)
-                                                {
-                                                    byte* neighborN = ptr + (pX + dx) + ((pY + dy) * stride);
-                                                    if (!visit[pY + dy, pX + dx])
-                                                    {
-                                                        if (*neighborN == 0)
-                                                        {
-                                                            labelM[pY + dy, pX + dx] = currLabel;
-                                                            neighborsOfNeighbors.Push(new Point(i + dy, j + dx));
-                                                            visit[pY + dy, pX + dx] = true;
-                                                        }
-                                                        //visit[pY + dy, pX + dx] = true;
-                                                    }
-                                                }
-                                            }
+                                            if (*(ptrN + (neighborY * stride) + neighborX) == 0 &&
+                                                !visited[neighborX, neighborY])
+                                                neighbors.Push(new Point(neighborX, neighborY));
                                         }
                                     }
                                 }
-                            } //currLabel++;
-                            //visit[i, j] = true;
+                            }
+                            //TODO : CREATE MECHANISM HERE.
+                            //TODO: Either: Labeling with int matrix W x H.
+                            //TODO: OR Process each shape immediately. <-----
+                            shapes.Add(shape);
                         }
                         ptr++;
                     }
-                    ptr += offset;
-                }
-            }
-            bitmap.UnlockBits(bmpData);
-            
-            for (int i = 0; i < height; i++)
-            {
-                for (int j = 0; j < width; j++)
-                {
-                    Console.Write(labelM[i, j].ToString().PadLeft(4));
-                }
-                Console.WriteLine(); 
-            }
-        }
 
-        private static void Isolate4(Bitmap bitmap)
-        {
-            int width = bitmap.Width;
-            int height = bitmap.Height;
-            BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, width, height),
-                ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
-            int stride = bmpData.Stride;
-            int offset = stride - width;
-            //bool[,] visit = new bool[width,height];
-            int[,] label = new int[width, height];
-            int currLabel = 1;
-            //Queue<Point> neighbors = new Queue<Point>();
-            //Queue<Point> neighborsOfNeighbors = new Queue<Point>();
-            int[] dx = { +1, 0, -1, 0 };
-            int[] dy = { 0, +1, 0, -1 };
-            unsafe
-            {
-                byte* ptr = (byte*)bmpData.Scan0.ToPointer();
-                for (int i = 0; i < height; i++)
-                {
-                    for (int j = 0; j < width; j++)
-                    {
-                        if (*ptr == 0)
-                        {
-                            
-                            /*for (int dy = -1; dy <= 1; dy++)
-                            {
-                                for (int dx = -1; dx <= 1; dx++)
-                                {
-                                    if(dx != 0 && dy != 0) // Dont check same pixel again
-                                    {
-                                        if(!visit[j + dx, i + dy])
-                                        {
-                                            if (*(ptr + dx + stride * dy) == 0 && mask[dy, dx] == 1)
-                                            {
-                                                neighbors.Push(new Point(j + dx, i + dy));
-                                            }
-                                            else if (*(ptr + dx + stride * dy) != 0 && mask[dy, dx] == 1)
-                                            {
-                                                visit[j + dx, i + dy] = true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }*/
-                        } 
-                        ptr++;
-                    }
                     ptr += offset;
                 }
             }
-            bitmap.UnlockBits(bmpData);
-            
-        }
+
+            bitmap.UnlockBits(bmd);
+            Console.WriteLine(shapes.Count);
+        }   
+        
         public static void Main()
         {
             Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
@@ -1360,7 +1022,6 @@ namespace study1
             //Isolate(bitmapArray[0]);
             //Isolate2(AddPadding(bitmapArray[0], 1, 255));//.Save("iso-test.bmp", ImageFormat.Bmp);
             //Test1(AddPadding(bitmapArray[0], 1, 255));
-            //FindContours(AddPadding(bitmapArray[0], 1, 255));//.Save("iso-test.bmp", ImageFormat.Bmp);)
             
             //Point[] points = Corners_Moravec(bitmapArray[0]);
             //Console.WriteLine(points.Length);
@@ -1377,10 +1038,9 @@ namespace study1
             {
                 b2[i].Save($"Shape{i+1}.jpg", ImageFormat.Jpeg);
             }*/
-            Corners_Harris(bitmapArray[0]);
+            //Corners_Harris(bitmapArray[0]);
             
-            //Isolate3(AddPadding(bitmapArray[0], 5, 255));
-            
+            Isolate(bitmapArray[0]);
             DisposeOfBitmaps(bitmapArray);
         }
     }
