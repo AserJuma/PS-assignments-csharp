@@ -288,6 +288,49 @@ namespace study1
             Console.WriteLine($"New Bitmap has {bitmap8.PixelFormat} Pixel format from 24bit");
             return bitmap8;
         }
+        private static Bitmap Convert8To24(Bitmap bitmap8)
+        {
+            if (bitmap8.PixelFormat != PixelFormat.Format8bppIndexed) throw new Exception("Error: Bitmap not 8bit");
+            int height = bitmap8.Height;
+            int width = bitmap8.Width;
+            Bitmap bitmap24 = new Bitmap(width, height, PixelFormat.Format24bppRgb);
+            //bitmap8.Palette = DefineGrayPalette(bitmap8);
+            BitmapData b1 = bitmap8.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+
+            BitmapData b2 = bitmap24.LockBits(new Rectangle(0, 0, width, height),
+                ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+
+            int stride = b1.Stride;
+            int stride24 = b2.Stride;
+            int offset = stride - bitmap8.Width;
+            int offset24 = stride24 - bitmap24.Width * 3;
+
+            unsafe
+            {
+                byte* ptr = (byte*)b1.Scan0.ToPointer();
+                byte* ptr24 = (byte*)b2.Scan0.ToPointer();
+
+                for (int i = 0; i < height; i++)
+                {
+                    for (int j = 0; j < width; j++)
+                    {
+                        ptr24[0] = *ptr;
+                        ptr24[1] = ptr24[0];
+                        ptr24[2] = ptr24[0];
+                        ptr24 += 3;
+                        ptr++;
+                    }
+                    ptr += offset;
+                    ptr24 += offset24;
+                }
+            }
+
+            bitmap8.UnlockBits(b1);
+            bitmap24.UnlockBits(b2);
+            Console.WriteLine($"New Bitmap has {bitmap24.PixelFormat} Pixel format from 8bit");
+            return bitmap24;
+        }
 
         private static Bitmap Convert1To8(Bitmap bitmap1)
         {
@@ -1764,7 +1807,7 @@ namespace study1
         
         private static void processShape3(/*Bitmap bitmap,*/ List<Point> shape, int shapeNumber)
         {
-             int minX = int.MaxValue, minY = Int32.MaxValue, maxX = 0, maxY = 0;
+            int minX = int.MaxValue, minY = Int32.MaxValue, maxX = 0, maxY = 0;
              HashSet<Point> uniquePoints = new HashSet<Point>();
              /*Point minXy = new Point();
              Point maxXy = new Point();
@@ -1783,8 +1826,8 @@ namespace study1
             
             //uniquePoints.Add(maxXy); uniquePoints.Add(minXy); uniquePoints.Add(xMaxY); uniquePoints.Add(xMinY);
             int width = maxX - minX + 1, height = maxY - minY + 1;
-            Bitmap bitmap = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
-            BitmapData bitmapData = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+            Bitmap bitmap1 = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
+            BitmapData bitmapData = bitmap1.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
             int stride = bitmapData.Stride;
             int offset = stride - width;
             int topCount = 0;
@@ -1811,6 +1854,7 @@ namespace study1
                 {
                     int pX = p.X; int pY = p.Y;
                     *(ptr + pX - minX + (pY - minY) * stride) = 0;
+                    
                 }
                 for (int i = 0; i < width; i++, topPtr++, bottomPtr++)
                 {
@@ -1827,7 +1871,8 @@ namespace study1
                         rightCount++;
                 }
             }
-            bitmap.UnlockBits(bitmapData);
+            
+            bitmap1.UnlockBits(bitmapData);
             //int uniquePointsCount = uniquePoints.Count;
              //int error = 5;
             int[] sideLengths = new int[4];
@@ -1876,10 +1921,279 @@ namespace study1
             //Console.WriteLine("---------------");
            
             
-            bitmap.Save($"{shapeName}-{shapeNumber}.bmp", ImageFormat.Bmp);
+            bitmap1.Save($"{shapeName}-{shapeNumber}.bmp", ImageFormat.Bmp);
             
         }
-        private static List<Point> RamerDouglasPeucker(List<Point> shape, int epsilon)
+        
+        private static void findShapes(Bitmap bitmap)
+        {
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            bool[,] visit = new bool[width, height];
+            Bitmap cBitmap = Convert8To24(bitmap);
+            BitmapData bitmapData = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
+            int stride = bitmapData.Stride;
+            int offset = stride - width;
+            int shapeCount = 0;
+            List<List<Point>> shapes = new List<List<Point>>();
+            unsafe
+            {
+                byte* ptr = (byte*)bitmapData.Scan0.ToPointer();
+                byte* ptrN = ptr;
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        if (*ptr == 0 && !visit[x, y])
+                        {
+                            visit[x, y] = true;
+                            List<Point> shape = new List<Point>();
+                            Stack<Point> neighbors = new Stack<Point>();
+                            neighbors.Push(new Point(x, y));
+                            while (neighbors.Count != 0)
+                            {
+                                Point point = neighbors.Pop();
+                                int currX = point.X; int currY = point.Y;
+                                shape.Add(point);
+                                for (int dy = -1; dy <= 1; dy++)
+                                {
+                                    for (int dx = -1; dx <= 1; dx++)
+                                    {
+                                        int neighborX = currX + dx;
+                                        int neighborY = currY + dy;
+                                        if (neighborX >= 0 && neighborX < width && neighborY >= 0 && neighborY < height)
+                                        {
+                                            if (*(ptrN + (neighborY * stride) + neighborX) == 0 &&
+                                                !visit[neighborX, neighborY])
+                                            {
+                                                visit[neighborX, neighborY] = true;
+                                                neighbors.Push(new Point(neighborX, neighborY));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            //shapeCount++;
+                            //processShape3(shape, shapeCount);
+                            shapes.Add(shape);
+                        }
+                        ptr++;
+                    }
+
+                    ptr += offset;
+                }
+            }
+            bitmap.UnlockBits(bitmapData);
+            
+            foreach (List<Point> shape in shapes)
+            {
+                int minX = int.MaxValue, minY = Int32.MaxValue, maxX = 0, maxY = 0;
+                foreach (Point p in shape)
+                {
+                    int x = p.X, y = p.Y;
+                    if (x > maxX) {maxX = x;}
+                    if (x < minX) {minX = x;}
+                    if (y > maxY) {maxY = y;}
+                    if (y < minY) {minY = y;}
+                }
+                int widthB = maxX - minX + 1, heightB = maxY - minY + 1;
+                BitmapData bmpData = bitmap.LockBits(new Rectangle(minX, minY, widthB, heightB), ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+                
+                int stride1 = bmpData.Stride;
+                int offset1 = stride1 - widthB;
+                int topCount = 0;
+                int botCount = 0;
+                int leftCount = 0;
+                int rightCount = 0;
+                bool sidesEqual = false;
+                bool avgSideEqual = true;
+                string shapeName = "unknown";
+                unsafe
+                {
+                    byte* topPtr = (byte*)bmpData.Scan0.ToPointer();
+                    byte* bottomPtr = (byte*)bmpData.Scan0.ToPointer() + stride1 * (heightB - 1);
+                    byte* leftPtr = (byte*)bmpData.Scan0.ToPointer(); // Overlap
+                    byte* rightPtr = (byte*)bmpData.Scan0.ToPointer() + (widthB - 1);
+                    for (int i = 0; i < widthB; i++, topPtr++, bottomPtr++)
+                    {
+                        if (*topPtr == 0)
+                            topCount++;
+                        if (*bottomPtr == 0)
+                            botCount++;
+                    }
+                    for (int i = 0; i < heightB; i++, leftPtr += stride1, rightPtr += stride1)
+                    {
+                        if (*leftPtr == 0)
+                            leftCount++;
+                        if (*rightPtr == 0)
+                            rightCount++;
+                    }
+                    int[] sideLengths = new int[4];
+                    sideLengths[0] = topCount; sideLengths[1] = rightCount; sideLengths[2] = botCount; sideLengths[3] = leftCount;
+                    int avgSide = (botCount + topCount + rightCount + leftCount) / 4;
+                    if (botCount == topCount && botCount == rightCount && topCount == leftCount) sidesEqual = true;
+                    for (int i = 0; i < sideLengths.Length; i++)
+                        if (avgSide - 5 > sideLengths[i] || avgSide + 5 < sideLengths[i]) avgSideEqual = false;
+                    int largestDiff = sideLengths.Max() - sideLengths.Min();
+                    if (widthB == heightB)
+                    {
+                        if (sidesEqual || avgSideEqual)
+                        {
+                            if (topCount == widthB || avgSide == widthB || topCount == 1)
+                                shapeName = "square";
+                            else shapeName = "circle";
+                        }
+                        else
+                        {
+                            if (largestDiff > widthB / 2) shapeName = "triangle";
+                            else shapeName = "square";
+                        }
+                    }
+                    else
+                    {
+                        if (topCount == widthB && leftCount == heightB && rightCount == leftCount)
+                            shapeName = "rectangle";
+                        //else if (largestDiff >= widthB - 3) shapeName = "triangle";
+                        else shapeName = "triangle";
+                    }
+                }
+                bitmap.UnlockBits(bmpData);
+                
+                BitmapData bmpData24 = cBitmap.LockBits(new Rectangle(minX-1, minY-1, widthB+10, heightB+10), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
+                int stride2 = bmpData24.Stride;
+                unsafe
+                {
+                    byte* topPtr2 = (byte*)bmpData24.Scan0.ToPointer();
+                    byte* bottomPtr2 = (byte*)bmpData24.Scan0.ToPointer() + stride2 * (heightB - 1);
+                    byte* leftPtr2 = (byte*)bmpData24.Scan0.ToPointer(); // Overlap
+                    byte* rightPtr2 = (byte*)bmpData24.Scan0.ToPointer() + (widthB - 1) * 3;
+                    for (int i = 0; i < widthB; i++, topPtr2+=3, bottomPtr2+=3)
+                    {
+                        topPtr2[0] = 0;topPtr2[1] = 0;topPtr2[2] = 255;
+                        bottomPtr2[0] = 0;bottomPtr2[1] = 0;bottomPtr2[2] = 255;
+                    }
+                    for (int i = 0; i < heightB; i++, leftPtr2 += stride2, rightPtr2 += stride2)
+                    {
+                        leftPtr2[0] = 0;leftPtr2[1] = 0;leftPtr2[2] = 255;
+                        rightPtr2[0] = 0;rightPtr2[1] = 0;rightPtr2[2] = 255;
+                    }
+                }
+                
+                Font font = new Font("Arial", 10);
+                SolidBrush brush = new SolidBrush(Color.Red);
+                using (Graphics g = Graphics.FromImage(cBitmap))
+                {
+                    g.DrawString(shapeName, font, brush, minX-8, minY-16);
+                }
+                
+                cBitmap.UnlockBits(bmpData24);
+            }
+            cBitmap.Save("result.bmp", ImageFormat.Bmp);
+        }
+
+        /*private static void findShapes2(Bitmap b, List<List<Point>> sh)
+        {
+            foreach (List<Point> shape in sh)
+            {
+                int minX = int.MaxValue, minY = Int32.MaxValue, maxX = 0, maxY = 0;
+                foreach (Point p in shape)
+                {
+                    int x = p.X, y = p.Y;
+                    if (x > maxX) {maxX = x;}
+                    if (x < minX) {minX = x;}
+                    if (y > maxY) {maxY = y;}
+                    if (y < minY) {minY = y;}
+                }
+                int widthB = maxX - minX + 1, heightB = maxY - minY + 1;
+                BitmapData bmpData = b.LockBits(new Rectangle(minX, minY, widthB, heightB), ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+                
+                int stride1 = bmpData.Stride;
+                int offset1 = stride1 - widthB;
+                int topCount = 0;
+                int botCount = 0;
+                int leftCount = 0;
+                int rightCount = 0;
+                bool sidesEqual = false;
+                bool avgSideEqual = true;
+                string shapeName = "unknown";
+                unsafe
+                {
+                    byte* topPtr = (byte*)bmpData.Scan0.ToPointer();
+                    byte* bottomPtr = (byte*)bmpData.Scan0.ToPointer() + stride1 * (heightB - 1);
+                    byte* leftPtr = (byte*)bmpData.Scan0.ToPointer(); // Overlap
+                    byte* rightPtr = (byte*)bmpData.Scan0.ToPointer() + (widthB - 1);
+                    for (int i = 0; i < widthB; i++, topPtr++, bottomPtr++)
+                    {
+                        if (*topPtr == 0)
+                            topCount++;
+                        if (*bottomPtr == 0)
+                            botCount++;
+                    }
+                    for (int i = 0; i < heightB; i++, leftPtr += stride1, rightPtr += stride1)
+                    {
+                        if (*leftPtr == 0)
+                            leftCount++;
+                        if (*rightPtr == 0)
+                            rightCount++;
+                    }
+                    int[] sideLengths = new int[4];
+                    sideLengths[0] = topCount; sideLengths[1] = rightCount; sideLengths[2] = botCount; sideLengths[3] = leftCount;
+                    int avgSide = (botCount + topCount + rightCount + leftCount) / 4;
+                    if (botCount == topCount && botCount == rightCount && topCount == leftCount) sidesEqual = true;
+                    for (int i = 0; i < sideLengths.Length; i++)
+                        if (avgSide - 5 > sideLengths[i] || avgSide + 5 < sideLengths[i]) avgSideEqual = false;
+                    int largestDiff = sideLengths.Max() - sideLengths.Min();
+                    if (widthB == heightB)
+                    {
+                        if (sidesEqual || avgSideEqual)
+                        {
+                            if (topCount == widthB || avgSide == widthB || topCount == 1)
+                                shapeName = "square";
+                            else shapeName = "circle";
+                        }
+                        else
+                        {
+                            if (largestDiff > widthB / 2) shapeName = "triangle";
+                            else shapeName = "square";
+                        }
+                    }
+                    else
+                    {
+                        if (topCount == widthB && leftCount == heightB && rightCount == leftCount)
+                            shapeName = "rectangle";
+                        //else if (largestDiff >= widthB - 3) shapeName = "triangle";
+                        else shapeName = "triangle";
+                    }
+                    //byte* ptr2 = (byte*)bmpData.Scan0.ToPointer();
+                    byte* topPtr2 = (byte*)bmpData.Scan0.ToPointer();
+                    byte* bottomPtr2 = (byte*)bmpData.Scan0.ToPointer() + stride1 * (heightB - 1);
+                    byte* leftPtr2 = (byte*)bmpData.Scan0.ToPointer(); // Overlap
+                    byte* rightPtr2 = (byte*)bmpData.Scan0.ToPointer() + (widthB - 1);
+                    for (int i = 0; i < widthB; i++, topPtr2++, bottomPtr2++)
+                    {
+                        *topPtr2 = 128;
+                        *bottomPtr2 = 128;
+                    }
+                    for (int i = 0; i < heightB; i++, leftPtr2 += stride1, rightPtr2 += stride1)
+                    {
+                        *leftPtr2 = 128;
+                        *rightPtr2 = 128;
+                    }
+                }
+                /*Font font = new Font("Arial", 16);
+                SolidBrush brush = new SolidBrush(Color.Black);
+                using (Graphics g = Graphics.FromImage(b))
+                {
+                    g.DrawString(shapeName, font, brush, minX + 1, minY + 1);
+                }#1#
+
+                
+                b.UnlockBits(bmpData);
+            }
+            b.Save("result.bmp", ImageFormat.Bmp);
+        }*/
+        
+        /*private static List<Point> RamerDouglasPeucker(List<Point> shape, int epsilon)
         {
             int dmax = 0;
             int index = 0;
@@ -1887,7 +2201,7 @@ namespace study1
             List<Point> ResultList;
             
             return null;
-        }
+        }*/
         
         private static Bitmap Invert(Bitmap bitmap)
         {
@@ -2028,7 +2342,10 @@ namespace study1
         public static void Main()
         {
             Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
-            Isolate(Binarize(bitmapArray[0], 128)); // Isolate && processShapes2
+            //Isolate(Binarize(bitmapArray[0], 128)); // Isolate && processShapes3
+            findShapes(Binarize(bitmapArray[0], 128));
+            //Convert8To24(bitmapArray[0]).Save("8to24.bmp", ImageFormat.Bmp);
+            
             
             //Binarize(bitmapArray[0], 200)                     .Save("s_b.bmp"     , ImageFormat.Bmp); 
             //MeanBinarize(bitmapArray[0])                      .Save("m_b.bmp"     , ImageFormat.Bmp);
