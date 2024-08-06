@@ -1805,7 +1805,7 @@ namespace study1
                     if (y < minY) {minY = y;}
                 }
                 int widthB = maxX - minX + 1, heightB = maxY - minY + 1;
-                BitmapData bmpData = bitmap.LockBits(new Rectangle(minX, minY, widthB, heightB), ImageLockMode.ReadWrite, PixelFormat.Format8bppIndexed);
+                BitmapData bmpData = bitmap.LockBits(new Rectangle(minX, minY, widthB, heightB), ImageLockMode.ReadOnly, PixelFormat.Format8bppIndexed);
                 
                 int stride1 = bmpData.Stride;
                 int offset1 = stride1 - widthB;
@@ -1824,17 +1824,13 @@ namespace study1
                     byte* rightPtr = (byte*)bmpData.Scan0.ToPointer() + (widthB - 1);
                     for (int i = 0; i < widthB; i++, topPtr++, bottomPtr++)
                     {
-                        if (*topPtr == 0)
-                            topCount++;
-                        if (*bottomPtr == 0)
-                            botCount++;
+                        if (*topPtr == 0) topCount++;
+                        if (*bottomPtr == 0) botCount++;
                     }
                     for (int i = 0; i < heightB; i++, leftPtr += stride1, rightPtr += stride1)
                     {
-                        if (*leftPtr == 0)
-                            leftCount++;
-                        if (*rightPtr == 0)
-                            rightCount++;
+                        if (*leftPtr == 0) leftCount++;
+                        if (*rightPtr == 0) rightCount++;
                     }
                     int[] sideLengths = new int[4];
                     sideLengths[0] = topCount; sideLengths[1] = rightCount; sideLengths[2] = botCount; sideLengths[3] = leftCount;
@@ -1861,8 +1857,8 @@ namespace study1
                     {
                         if (topCount == widthB && leftCount == heightB && rightCount == leftCount)
                             shapeName = "rectangle";
-                        //else if (largestDiff >= widthB - 3) shapeName = "triangle";
-                        else shapeName = "triangle";
+                        else if (largestDiff >= widthB - 3) shapeName = "triangle";
+                        else shapeName = "rotated triangle";
                     }
                 }
                 bitmap.UnlockBits(bmpData);
@@ -1877,22 +1873,20 @@ namespace study1
                     byte* rightPtr2 = (byte*)bmpData24.Scan0.ToPointer() + (widthB - 1) * 3;
                     for (int i = 0; i < widthB; i++, topPtr2+=3, bottomPtr2+=3)
                     {
-                        topPtr2[0] = 0;topPtr2[1] = 0;topPtr2[2] = 255;
-                        bottomPtr2[0] = 0;bottomPtr2[1] = 0;bottomPtr2[2] = 255;
+                        topPtr2[0] = 0; topPtr2[1] = 0; topPtr2[2] = 255; // BGR not RGB
+                        bottomPtr2[0] = 0; bottomPtr2[1] = 0; bottomPtr2[2] = 255;
                     }
                     for (int i = 0; i < heightB; i++, leftPtr2 += stride2, rightPtr2 += stride2)
                     {
-                        leftPtr2[0] = 0;leftPtr2[1] = 0;leftPtr2[2] = 255;
-                        rightPtr2[0] = 0;rightPtr2[1] = 0;rightPtr2[2] = 255;
+                        leftPtr2[0] = 0; leftPtr2[1] = 0; leftPtr2[2] = 255;
+                        rightPtr2[0] = 0; rightPtr2[1] = 0; rightPtr2[2] = 255;
                     }
                 }
                 
                 Font font = new Font("Arial", 10);
                 SolidBrush brush = new SolidBrush(Color.Red);
                 using (Graphics g = Graphics.FromImage(cBitmap))
-                {
                     g.DrawString(shapeName, font, brush, minX-8, minY-16);
-                }
                 
                 cBitmap.UnlockBits(bmpData24);
             }
