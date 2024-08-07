@@ -1597,17 +1597,17 @@ namespace study1
             foreach (Bitmap bitmap in bitmaps)
             {
                 bitmapCount++;
-                MeanBinarize(bitmap);
+                Bitmap cBitmap = Convert8To24(bitmap);
                 int width = bitmap.Width;
                 int height = bitmap.Height;
                 bool[,] visit = new bool[width, height];
-                Bitmap cBitmap = Convert8To24(bitmap);
                 BitmapData bitmapData = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly,
                     PixelFormat.Format8bppIndexed);
                 int stride = bitmapData.Stride;
                 int offset = stride - width;
                 int shapeCount = 0;
                 List<List<Point>> shapes = new List<List<Point>>();
+                
                 unsafe
                 {
                     byte* ptr = (byte*)bitmapData.Scan0.ToPointer();
@@ -1655,7 +1655,8 @@ namespace study1
 
                 foreach (List<Point> shape in shapes)
                 {
-                    int minX = int.MaxValue, minY = Int32.MaxValue, maxX = 0, maxY = 0;
+                    int minX = int.MaxValue; int minY = Int32.MaxValue;
+                    int maxX = 0; int maxY = 0;
                     foreach (Point p in shape)
                     {
                         int x = p.X, y = p.Y;
@@ -1674,6 +1675,7 @@ namespace study1
                     int leftCount = 0;
                     int rightCount = 0;
                     string shapeName = "unknown";
+                    
                     unsafe
                     {
                         byte* topPtr = (byte*)bmpData.Scan0.ToPointer();
@@ -1706,7 +1708,7 @@ namespace study1
                         {
                             if (sidesEqual || avgSideEqual)
                             {
-                                if (topCount == widthB || avgSide == widthB || topCount == 1)
+                                if (topCount == widthB || avgSide == widthB || topCount <= 3)
                                     shapeName = "square";
                                 else shapeName = "circle";
                             }
@@ -1724,11 +1726,10 @@ namespace study1
                             else shapeName = "rotated triangle";
                         }
                     }
-
                     bitmap.UnlockBits(bmpData);
-
+                    
                     BitmapData bmpData24 =
-                        cBitmap.LockBits(new Rectangle(minX - 1, minY - 1, widthB + 10, heightB + 10),
+                        cBitmap.LockBits(new Rectangle(minX - 1, minY - 1, widthB + 5, heightB + 5),
                             ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
                     int stride2 = bmpData24.Stride;
                     unsafe
@@ -1757,12 +1758,11 @@ namespace study1
 
                     cBitmap.UnlockBits(bmpData24);
                 }
-
                 cBitmap.Save($"result{bitmapCount}.bmp", ImageFormat.Bmp);
             }
         }
         
-        
+        // TODO: Add functionality for ellipses
         public static void Main()
         {
             Bitmap[] bitmapArray = Load_Bitmaps(Load_FilesNames());
